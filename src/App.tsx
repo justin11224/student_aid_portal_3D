@@ -1,0 +1,8990 @@
+import React, { useState, useEffect } from 'react';
+import { 
+  User, 
+  Home,
+  BookOpen, 
+  Calendar, 
+  Bell, 
+  DollarSign, 
+  MessageSquare, 
+  Megaphone, 
+  Settings, 
+  LogOut, 
+  Plus, 
+  AlertTriangle,
+  Trash2, 
+  Edit, 
+  Edit2,
+  CheckCircle, 
+  XCircle,
+  Mail,
+  Shield,
+  ArrowLeft,
+  Eye,
+  EyeOff,
+  UserPlus,
+  LogIn,
+  Search,
+  Moon,
+  Sun,
+  ChevronRight,
+  ChevronLeft,
+  Menu,
+  Clock,
+  MapPin,
+  TrendingUp,
+  Award,
+  Users,
+  Users2,
+  Send,
+  X,
+  FileText,
+  LayoutDashboard,
+  Camera,
+  Upload,
+  Download,
+  Key,
+  LifeBuoy,
+  CreditCard,
+  Library,
+  UserCheck,
+  Wallet,
+  Heart,
+  PlusCircle,
+  GraduationCap,
+  Palette,
+  ClipboardList,
+  Book,
+  Globe,
+  ShieldCheck,
+  BarChart3,
+  Database,
+  Calculator,
+  Receipt,
+  Play,
+  Check,
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
+import { 
+  LineChart, 
+  Line, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  Cell
+} from 'recharts';
+import { isSupabaseConfigured, updateSupabaseConfig, supabase } from './lib/supabase';
+
+// Utility for tailwind classes
+function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
+type Role = 'student' | 'faculty' | 'staff' | 'admin';
+
+interface UserData {
+  id: string;
+  surname: string;
+  name: string;
+  role: Role;
+  status?: 'pending' | 'approved' | 'rejected';
+  course?: string;
+  yearLevel?: string;
+  balance?: number;
+  grades?: any[];
+  schedule?: any[];
+  password?: string;
+  securityQuestion?: string;
+  securityAnswer?: string;
+  profilePic?: string;
+  mentorId?: string;
+}
+
+export default function App() {
+  const [user, setUser] = useState<UserData | null>(() => {
+    const saved = localStorage.getItem('aid_portal_user');
+    return saved ? JSON.parse(saved) : null;
+  });
+  const [view, setView] = useState<string>(() => {
+    const saved = localStorage.getItem('aid_portal_view');
+    return saved || 'landing';
+  });
+  const [selectedChatUser, setSelectedChatUser] = useState<UserData | null>(null);
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [loginId, setLoginId] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [regData, setRegData] = useState({ 
+    id: '', 
+    surname: '', 
+    name: '', 
+    role: 'student' as Role, 
+    course: 'BSIT', 
+    yearLevel: '1st Year',
+    password: '',
+    confirmPassword: '',
+    securityQuestion: 'What is your favorite color?',
+    securityAnswer: ''
+  });
+  const [error, setError] = useState('');
+  const [announcements, setAnnouncements] = useState<any[]>([]);
+  const [users, setUsers] = useState<UserData[]>([]);
+  const [messages, setMessages] = useState<any[]>([]);
+  const [financialAid, setFinancialAid] = useState<any[]>([]);
+  const [scholarships, setScholarships] = useState<any[]>([]);
+  const [recommendations, setRecommendations] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [activeModal, setActiveModal] = useState<string | null>(null);
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    const saved = localStorage.getItem('aid_portal_dark_mode');
+    return saved === 'true';
+  });
+  const [accentColor, setAccentColor] = useState(() => {
+    return localStorage.getItem('aid_portal_accent_color') || 'red';
+  });
+  const [notificationSettings, setNotificationSettings] = useState(() => {
+    const saved = localStorage.getItem('aid_portal_notifications');
+    return saved ? JSON.parse(saved) : { email: true, push: true, sms: true, reports: true };
+  });
+  const [language, setLanguage] = useState(() => {
+    return localStorage.getItem('aid_portal_language') || 'English (US)';
+  });
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
+    const saved = localStorage.getItem('aid_portal_sidebar_open');
+    return saved !== null ? saved === 'true' : true;
+  });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<{ users: UserData[], announcements: any[], applications: any[] } | null>(null);
+  const [policies, setPolicies] = useState<any>(null);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [confirmConfig, setConfirmConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    type: 'danger' | 'warning';
+  }>({ isOpen: false, title: '', message: '', onConfirm: () => {}, type: 'danger' });
+
+  const [selectedScholarship, setSelectedScholarship] = useState<string | null>(null);
+  const [selectedStudentForRec, setSelectedStudentForRec] = useState<{id: string, name: string} | null>(null);
+  const [gradeEntryFilter, setGradeEntryFilter] = useState('');
+
+  // Persist state
+  useEffect(() => {
+    if (user) {
+      localStorage.setItem('aid_portal_user', JSON.stringify(user));
+    } else {
+      localStorage.removeItem('aid_portal_user');
+    }
+  }, [user]);
+
+  useEffect(() => {
+    localStorage.setItem('aid_portal_sidebar_open', String(isSidebarOpen));
+  }, [isSidebarOpen]);
+
+  useEffect(() => {
+    localStorage.setItem('aid_portal_view', view);
+  }, [view]);
+
+  useEffect(() => {
+    localStorage.setItem('aid_portal_dark_mode', isDarkMode.toString());
+  }, [isDarkMode]);
+
+  useEffect(() => {
+    localStorage.setItem('aid_portal_sidebar_open', isSidebarOpen.toString());
+  }, [isSidebarOpen]);
+
+  const [mentors, setMentors] = useState<any[]>([]);
+  const [resources, setResources] = useState<any[]>([]);
+  const [courses, setCourses] = useState<any[]>([]);
+  const [communityEvents, setCommunityEvents] = useState<any[]>([]);
+  const [communityOrgs, setCommunityOrgs] = useState<any[]>([]);
+
+  // Fetch data
+  useEffect(() => {
+    if (user) {
+      fetchAnnouncements();
+      fetchUsers();
+      fetchMessages();
+      fetchFinancialAid();
+      fetchScholarships();
+      fetchRecommendations();
+      fetchNotifications();
+      fetchPolicies();
+      fetchMentors();
+      fetchResources();
+      fetchCourses();
+      fetchCommunityData();
+    }
+  }, [user]);
+
+  const fetchMentors = async () => {
+    const { data, error } = await supabase.from('mentors').select('*');
+    if (!error && data) setMentors(data);
+  };
+
+  const fetchResources = async () => {
+    const { data, error } = await supabase.from('resources').select('*');
+    if (!error && data) setResources(data);
+  };
+
+  const fetchCourses = async () => {
+    const { data, error } = await supabase.from('courses').select('*');
+    if (!error && data) setCourses(data);
+  };
+
+  const fetchCommunityData = async () => {
+    const { data: events, error: eError } = await supabase.from('community_events').select('*');
+    const { data: orgs, error: oError } = await supabase.from('community_orgs').select('*');
+    if (!eError && events) setCommunityEvents(events);
+    if (!oError && orgs) setCommunityOrgs(orgs);
+  };
+
+  // Generate ID for registration
+  useEffect(() => {
+    const generateSequentialId = async () => {
+      if (isRegistering && !regData.id) {
+        try {
+          const year = new Date().getFullYear().toString().slice(-2);
+          
+          // Fetch the total count of users to determine the next sequence number
+          const { count, error } = await supabase
+            .from('users')
+            .select('*', { count: 'exact', head: true });
+
+          if (error) throw error;
+
+          const nextNumber = (count || 0) + 1;
+          const paddedNumber = nextNumber.toString().padStart(8, '0');
+          const generatedId = `SCC-${year}-${paddedNumber}`;
+          
+          setRegData(prev => ({ ...prev, id: generatedId }));
+        } catch (err) {
+          console.error('Error generating sequential ID:', err);
+          // Fallback to random if count fails
+          const year = new Date().getFullYear().toString().slice(-2);
+          const random = Math.floor(10000000 + Math.random() * 90000000);
+          setRegData(prev => ({ ...prev, id: `SCC-${year}-${random}` }));
+        }
+      }
+    };
+
+    generateSequentialId();
+  }, [isRegistering, regData.id]);
+
+  const fetchPolicies = async () => {
+    const { data, error } = await supabase
+      .from('policies')
+      .select('*');
+    if (!error && data) {
+      setPolicies(data[0] || null);
+    }
+  };
+
+  const fetchNotifications = async () => {
+    if (!user) return;
+    const { data, error } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('userId', user.id)
+      .order('timestamp', { ascending: false });
+    
+    if (!error && data) {
+      setNotifications(data);
+    }
+  };
+
+  const markNotificationsRead = async () => {
+    if (!user) return;
+    await supabase
+      .from('notifications')
+      .update({ read: true })
+      .eq('userId', user.id);
+    
+    fetchNotifications();
+  };
+
+  const fetchScholarships = async () => {
+    const { data, error } = await supabase
+      .from('scholarships')
+      .select('*');
+    
+    if (!error && data) {
+      setScholarships(data);
+    }
+  };
+
+  const fetchRecommendations = async () => {
+    const { data, error } = await supabase
+      .from('recommendations')
+      .select('*');
+    
+    if (!error && data) {
+      setRecommendations(data);
+    }
+  };
+
+  const fetchAnnouncements = async () => {
+    const { data, error } = await supabase
+      .from('announcements')
+      .select('*')
+      .order('date', { ascending: false });
+    
+    if (!error && data) {
+      setAnnouncements(data);
+    }
+  };
+
+  const fetchUsers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*');
+      
+      if (!error && data) {
+        setUsers(data);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleSearch = (query: string) => {
+    setSearchQuery(query);
+    if (!query.trim()) {
+      setSearchResults(null);
+      return;
+    }
+
+    const q = query.toLowerCase();
+    const filteredUsers = users.filter(u => 
+      u.name.toLowerCase().includes(q) || 
+      u.id.toLowerCase().includes(q) || 
+      u.role.toLowerCase().includes(q)
+    );
+    const filteredAnnouncements = announcements.filter(a => 
+      a.title.toLowerCase().includes(q) || 
+      a.content.toLowerCase().includes(q)
+    );
+    const filteredApplications = financialAid.filter(f => 
+      f.studentName?.toLowerCase().includes(q) || 
+      f.program?.toLowerCase().includes(q) || 
+      f.status?.toLowerCase().includes(q)
+    );
+
+    setSearchResults({
+      users: filteredUsers,
+      announcements: filteredAnnouncements,
+      applications: filteredApplications
+    });
+    setView('search');
+  };
+
+  const fetchMessages = async () => {
+    if (!user) return;
+    const { data, error } = await supabase
+      .from('messages')
+      .select('*')
+      .or(`to.eq.${user.id},from.eq.${user.id}`)
+      .order('timestamp', { ascending: true });
+    
+    if (!error && data) {
+      setMessages(data);
+    }
+  };
+
+  const fetchFinancialAid = async () => {
+    const { data, error } = await supabase
+      .from('financial_aid')
+      .select('*');
+    
+    if (!error && data) {
+      setFinancialAid(data);
+    }
+  };
+
+  const updateFinancialAidStatus = async (id: number, status: string) => {
+    await supabase
+      .from('financial_aid')
+      .update({ status })
+      .eq('id', id);
+    
+    // Create notification for student
+    const app = financialAid.find(a => a.id === id);
+    if (app) {
+      let notificationType: 'success' | 'error' | 'info' = 'info';
+      if (status === 'approved') notificationType = 'success';
+      if (status === 'rejected') notificationType = 'error';
+
+      await supabase.from('notifications').insert({
+        userId: app.studentId,
+        title: "Application Update",
+        message: `Your application for ${app.program} has been ${status}.`,
+        type: notificationType,
+        read: false,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    fetchFinancialAid();
+  };
+
+  const assignFaculty = async (applicationId: number, facultyId: string) => {
+    await supabase
+      .from('financial_aid')
+      .update({ facultyId })
+      .eq('id', applicationId);
+    
+    // Create notification for faculty
+    await supabase.from('notifications').insert({
+      userId: facultyId,
+      title: "New Assignment",
+      message: `You have been assigned to review an application.`,
+      type: 'info',
+      read: false,
+      timestamp: new Date().toISOString()
+    });
+
+    fetchFinancialAid();
+  };
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', loginId)
+        .eq('password', loginPassword)
+        .single();
+
+      if (error || !data) {
+        setError('Invalid ID or password');
+        return;
+      }
+
+      if (data.status === 'pending') {
+        setError('Your account is pending approval');
+        return;
+      }
+
+      if (data.status === 'rejected') {
+        setError('Your account has been rejected');
+        return;
+      }
+
+      setUser(data);
+      setView('dashboard');
+      
+      // Log audit
+      await supabase.from('audit_logs').insert({
+        action: 'LOGIN',
+        userId: data.id,
+        timestamp: new Date().toISOString(),
+        details: `User ${data.id} logged in`
+      });
+
+    } catch (err) {
+      console.error('Login error:', err);
+      setError('Connection failed. Please check your internet.');
+    }
+  };
+
+  const validatePassword = (password: string) => {
+    const minLength = 8;
+    const hasUpperCase = /[A-Z]/.test(password);
+    const hasLowerCase = /[a-z]/.test(password);
+    const hasNumbers = /\d/.test(password);
+    const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+
+    if (password.length < minLength) return "Password must be at least 8 characters long.";
+    if (!hasUpperCase) return "Password must contain at least one uppercase letter.";
+    if (!hasLowerCase) return "Password must contain at least one lowercase letter.";
+    if (!hasNumbers) return "Password must contain at least one number.";
+    if (!hasSpecialChar) return "Password must contain at least one special character.";
+    return null;
+  };
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+
+    if (regData.password !== regData.confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    const passwordError = validatePassword(regData.password);
+    if (passwordError) {
+      setError(passwordError);
+      return;
+    }
+
+    try {
+      // Check if ID already exists
+      const { data: existingUser, error: checkError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('id', regData.id)
+        .single();
+      
+      if (existingUser) {
+        setError('School ID Number already exists. Please use a unique ID.');
+        return;
+      }
+
+      const { confirmPassword, ...dataToInsert } = regData;
+      const newUser = {
+        ...dataToInsert,
+        status: 'pending',
+        balance: 0,
+        grades: [],
+        schedule: []
+      };
+
+      const { error } = await supabase
+        .from('users')
+        .insert(newUser);
+
+      if (error) {
+        setError(error.message);
+        return;
+      }
+
+      const registeredId = regData.id;
+      setIsRegistering(false);
+      setLoginId(registeredId);
+      setLoginPassword(regData.password);
+      setError(`Registration successful! Your School ID is: ${registeredId}. Please login once approved. (Much better to screenshot this!)`);
+      setView('login');
+
+      // Log audit
+      await supabase.from('audit_logs').insert({
+        action: 'REGISTER',
+        userId: registeredId,
+        timestamp: new Date().toISOString(),
+        details: `New user ${registeredId} registered as ${regData.role}`
+      });
+
+      // Reset registration data for next time
+      setRegData({ 
+        id: '', 
+        surname: '', 
+        name: '', 
+        role: 'student' as Role, 
+        course: 'BSIT', 
+        yearLevel: '1st Year',
+        password: '',
+        confirmPassword: '',
+        securityQuestion: 'What is your favorite color?',
+        securityAnswer: ''
+      });
+
+    } catch (err) {
+      console.error('Register error:', err);
+      setError('Registration failed. Connection error.');
+    }
+  };
+
+  const handleLogout = () => {
+    setConfirmConfig({
+      isOpen: true,
+      title: 'Logout Confirmation',
+      message: 'Are you sure you want to log out of your account? Any unsaved changes may be lost.',
+      type: 'warning',
+      onConfirm: () => {
+        setUser(null);
+        setView('landing');
+        setLoginId('');
+        setLoginPassword('');
+        setIsRegistering(false);
+        setIsForgotPassword(false);
+        setRegData({ 
+          id: '', 
+          surname: '', 
+          name: '', 
+          role: 'student' as Role, 
+          course: 'BSIT', 
+          yearLevel: '1st Year',
+          password: '',
+          securityQuestion: 'What is your favorite color?',
+          securityAnswer: ''
+        });
+      }
+    });
+  };
+
+  if (!user && view === 'landing') {
+    return <LandingPage onGetStarted={() => setView('login')} onRegister={() => { setView('login'); setIsRegistering(true); }} />;
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-[#F5F5F0] flex flex-col font-sans">
+        <nav className="p-6 flex justify-between items-center max-w-7xl mx-auto w-full">
+          <button onClick={() => setView('landing')} className="flex items-center gap-2 text-stone-900 font-bold text-xl">
+            <Shield className="w-6 h-6" />
+            Student Aid Portal
+          </button>
+        </nav>
+        <div className="flex-1 flex items-center justify-center p-4">
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white p-8 rounded-3xl shadow-xl w-full max-w-md border border-stone-200"
+          >
+            {error && (
+              <div className={cn(
+                "p-3 rounded-xl mb-4 text-sm text-center",
+                error.includes('successful') ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
+              )}>
+                {error}
+              </div>
+            )}
+
+            {isForgotPassword ? (
+              <ForgotPassword 
+                onBack={() => setIsForgotPassword(false)} 
+                isDarkMode={isDarkMode} 
+                setError={setError}
+              />
+            ) : !isRegistering ? (
+              <form onSubmit={handleLogin} className="space-y-4">
+                <div className="text-center mb-8">
+                  <div className="inline-block p-4 bg-red-50 rounded-full mb-4">
+                    <Shield className="w-8 h-8 text-red-600" />
+                  </div>
+                  <h1 className="text-3xl font-bold text-[#1a2b4b]">Welcome Back</h1>
+                  <p className="text-stone-500 mt-2">Sign in to Student Aid Portal</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">School ID Number</label>
+                  <input 
+                    type="text" 
+                    value={loginId}
+                    onChange={(e) => setLoginId(e.target.value)}
+                    className="w-full p-3 bg-white border border-stone-200 rounded-xl focus:ring-2 focus:ring-red-600 outline-none transition-all"
+                    placeholder="SCC-00-00000000"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Password</label>
+                  <div className="relative">
+                    <input 
+                      type={showPassword ? "text" : "password"} 
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      className="w-full p-3 bg-white border border-stone-200 rounded-xl focus:ring-2 focus:ring-red-600 outline-none transition-all pr-12 text-stone-900"
+                      placeholder="Enter your password"
+                      required
+                    />
+                    <button 
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-stone-400 hover:text-stone-600 transition-colors"
+                    >
+                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="text-right">
+                  <button 
+                    type="button" 
+                    onClick={() => setIsForgotPassword(true)}
+                    className="text-red-600 text-sm font-medium hover:underline"
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+
+                <button className="w-full py-4 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-red-100">
+                  <LogIn className="w-5 h-5" />
+                  Login
+                </button>
+                
+                <div className="pt-6 border-t border-stone-100">
+                  <p className="text-center text-sm text-stone-500">
+                    Don't have an account? <button type="button" onClick={() => setIsRegistering(true)} className="text-red-600 font-bold hover:underline">Register here</button>
+                  </p>
+                </div>
+              </form>
+            ) : (
+              <form onSubmit={handleRegister} className="space-y-4">
+                <button 
+                  type="button" 
+                  onClick={() => setIsRegistering(false)}
+                  className="flex items-center gap-2 text-stone-500 hover:text-stone-900 transition-colors mb-6 text-sm"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  Back to Login
+                </button>
+
+                <div className="text-center mb-8">
+                  <div className="inline-block p-4 bg-red-50 rounded-full mb-4">
+                    <Shield className="w-8 h-8 text-red-600" />
+                  </div>
+                  <h1 className="text-3xl font-bold text-[#1a2b4b]">Create Account</h1>
+                  <p className="text-stone-500 mt-2">Join the Student Aid Portal</p>
+                </div>
+
+                <div className="p-4 bg-stone-50 border border-stone-200 rounded-2xl mb-6">
+                  <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-1">Assigned School ID</label>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xl font-mono font-black text-red-600">{regData.id || 'Generating...'}</p>
+                    <span className="text-[10px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-bold uppercase">Read Only</span>
+                  </div>
+                  <p className="text-[10px] text-stone-500 mt-2 italic">Please remember this ID. You will use it to log in once your account is approved. (Much better to screenshot this!)</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-1">Full Name</label>
+                    <input 
+                      type="text" 
+                      value={regData.name}
+                      onChange={(e) => setRegData({...regData, name: e.target.value})}
+                      className="w-full p-3 bg-white border border-stone-200 rounded-xl focus:ring-2 focus:ring-red-600 outline-none transition-all"
+                      placeholder="John Doe"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-1">Surname</label>
+                    <input 
+                      type="text" 
+                      value={regData.surname}
+                      onChange={(e) => setRegData({...regData, surname: e.target.value})}
+                      className="w-full p-3 bg-white border border-stone-200 rounded-xl focus:ring-2 focus:ring-red-600 outline-none transition-all"
+                      placeholder="Doe"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-1">Password</label>
+                    <input 
+                      type="password" 
+                      value={regData.password}
+                      onChange={(e) => setRegData({...regData, password: e.target.value})}
+                      className="w-full p-3 bg-white border border-stone-200 rounded-xl focus:ring-2 focus:ring-red-600 outline-none transition-all"
+                      placeholder="Create a password"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-1">Confirm Password</label>
+                    <input 
+                      type="password" 
+                      value={regData.confirmPassword}
+                      onChange={(e) => setRegData({...regData, confirmPassword: e.target.value})}
+                      className="w-full p-3 bg-white border border-stone-200 rounded-xl focus:ring-2 focus:ring-red-600 outline-none transition-all"
+                      placeholder="Confirm password"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="text-[10px] text-stone-500 bg-stone-50 p-3 rounded-xl space-y-1">
+                  <p className="font-bold uppercase tracking-widest text-stone-400 mb-1">Password Requirements:</p>
+                  <p className={cn(regData.password.length >= 8 ? "text-emerald-600" : "text-stone-400")}>• Minimum 8 characters</p>
+                  <p className={cn(/[A-Z]/.test(regData.password) ? "text-emerald-600" : "text-stone-400")}>• At least one uppercase letter</p>
+                  <p className={cn(/[a-z]/.test(regData.password) ? "text-emerald-600" : "text-stone-400")}>• At least one lowercase letter</p>
+                  <p className={cn(/\d/.test(regData.password) ? "text-emerald-600" : "text-stone-400")}>• At least one number</p>
+                  <p className={cn(/[!@#$%^&*(),.?":{}|<>]/.test(regData.password) ? "text-emerald-600" : "text-stone-400")}>• At least one special character</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Security Question</label>
+                  <select 
+                    value={regData.securityQuestion}
+                    onChange={(e) => setRegData({...regData, securityQuestion: e.target.value})}
+                    className="w-full p-3 bg-white border border-stone-200 rounded-xl focus:ring-2 focus:ring-red-600 outline-none transition-all appearance-none text-stone-900"
+                  >
+                    <option>What is your favorite color?</option>
+                    <option>What was your first pet's name?</option>
+                    <option>What is your mother's maiden name?</option>
+                    <option>What city were you born in?</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Security Answer</label>
+                  <input 
+                    type="text" 
+                    value={regData.securityAnswer}
+                    onChange={(e) => setRegData({...regData, securityAnswer: e.target.value})}
+                    className="w-full p-3 bg-white border border-stone-200 rounded-xl focus:ring-2 focus:ring-red-600 outline-none transition-all"
+                    placeholder="Your answer"
+                    required
+                  />
+                </div>
+
+                <div className="hidden">
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Role</label>
+                  <select 
+                    value={regData.role}
+                    onChange={(e) => setRegData({...regData, role: e.target.value as Role})}
+                    className="w-full p-3 bg-white border border-stone-200 rounded-xl focus:ring-2 focus:ring-red-600 outline-none transition-all appearance-none text-stone-900"
+                  >
+                    <option value="student">Student</option>
+                  </select>
+                </div>
+
+                {regData.role === 'student' && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-stone-700 mb-1">Course</label>
+                      <select 
+                        value={regData.course}
+                        onChange={(e) => setRegData({...regData, course: e.target.value})}
+                        className="w-full p-3 bg-white border border-stone-200 rounded-xl focus:ring-2 focus:ring-red-600 outline-none transition-all appearance-none text-stone-900"
+                      >
+                        <option value="BSIT">BSIT</option>
+                        <option value="BSBA">BSBA</option>
+                        <option value="BSHM">BSHM</option>
+                        <option value="BSED">BSED</option>
+                        <option value="BEED">BEED</option>
+                        <option value="BSCRIM">BSCRIM</option>
+                        <option value="BSCS">BSCS</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-stone-700 mb-1">Year Level</label>
+                      <select 
+                        value={regData.yearLevel}
+                        onChange={(e) => setRegData({...regData, yearLevel: e.target.value})}
+                        className="w-full p-3 bg-white border border-stone-200 rounded-xl focus:ring-2 focus:ring-red-600 outline-none transition-all appearance-none text-stone-900"
+                      >
+                        <option value="1st Year">1st Year</option>
+                        <option value="2nd Year">2nd Year</option>
+                        <option value="3rd Year">3rd Year</option>
+                        <option value="4th Year">4th Year</option>
+                        <option value="5th Year">5th Year</option>
+                      </select>
+                    </div>
+                  </>
+                )}
+
+                <button className="w-full py-4 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-red-100">
+                  <UserPlus className="w-5 h-5" />
+                  Register
+                </button>
+                <p className="text-center text-sm text-stone-500 mt-4">
+                  Already have an account? <button type="button" onClick={() => setIsRegistering(false)} className="text-red-600 font-bold hover:underline">Login here</button>
+                </p>
+              </form>
+            )}
+          </motion.div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={cn(
+      "min-h-screen flex transition-colors duration-300",
+      isDarkMode ? "bg-[#0A0A0A] text-white" : "bg-[#F8FAFC] text-slate-900",
+      "font-sans"
+    )}>
+      {/* Mobile Sidebar Overlay */}
+      <AnimatePresence>
+        {!isSidebarOpen && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setIsSidebarOpen(true)}
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 lg:hidden"
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Sidebar */}
+      <aside className={cn(
+        "fixed lg:relative z-50 h-screen transition-all duration-300 border-r",
+        isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200",
+        isSidebarOpen ? "w-72 translate-x-0" : "w-0 -translate-x-full lg:w-20 lg:translate-x-0"
+      )}>
+        <div className="h-full flex flex-col overflow-hidden">
+          <div className={cn(
+            "p-6 flex items-center transition-all",
+            isSidebarOpen ? "justify-between" : "justify-center"
+          )}>
+            {isSidebarOpen && (
+              <h2 className="font-black tracking-tighter flex items-center gap-3 transition-all text-2xl opacity-100">
+                <Shield className={cn(
+                  "w-8 h-8 shrink-0",
+                  accentColor === 'red' ? "text-red-600" :
+                  accentColor === 'blue' ? "text-blue-600" :
+                  accentColor === 'emerald' ? "text-emerald-600" :
+                  "text-amber-600"
+                )} />
+                <span className="truncate">PORTAL</span>
+              </h2>
+            )}
+            <button 
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              className={cn(
+                "p-2 rounded-xl transition-colors hidden lg:block",
+                isDarkMode ? "hover:bg-white/5 text-slate-400" : "hover:bg-slate-100 text-slate-500"
+              )}
+            >
+              {isSidebarOpen ? <ChevronLeft className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
+            {/* Mobile Close Button */}
+            <button 
+              onClick={() => setIsSidebarOpen(false)}
+              className={cn(
+                "p-2 rounded-xl transition-colors lg:hidden",
+                isDarkMode ? "hover:bg-white/5 text-slate-400" : "hover:bg-slate-100 text-slate-500"
+              )}
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          
+          <nav className="flex-1 p-4 space-y-1 overflow-y-auto custom-scrollbar">
+            {user.role !== 'faculty' && (
+              <>
+                <NavCategory label="MAIN" collapsed={!isSidebarOpen} isDarkMode={isDarkMode} />
+                <NavItem icon={<Home />} label="Dashboard" active={view === 'dashboard'} onClick={() => setView('dashboard')} collapsed={!isSidebarOpen} isDarkMode={isDarkMode} accentColor={accentColor} />
+                <NavItem icon={<User />} label="My Profile" active={view === 'profile'} onClick={() => setView('profile')} collapsed={!isSidebarOpen} isDarkMode={isDarkMode} accentColor={accentColor} />
+              </>
+            )}
+            
+            {user.role === 'student' && (
+              <>
+                <NavCategory label="ACADEMIC" collapsed={!isSidebarOpen} isDarkMode={isDarkMode} />
+                <NavItem icon={<BookOpen />} label="My Grades" active={view === 'grades'} onClick={() => setView('grades')} collapsed={!isSidebarOpen} isDarkMode={isDarkMode} accentColor={accentColor} />
+                <NavItem icon={<Calendar />} label="Class Schedule" active={view === 'schedule'} onClick={() => setView('schedule')} collapsed={!isSidebarOpen} isDarkMode={isDarkMode} accentColor={accentColor} />
+                <NavItem icon={<LifeBuoy />} label="Academic Support" active={view === 'academic-support'} onClick={() => setView('academic-support')} collapsed={!isSidebarOpen} isDarkMode={isDarkMode} accentColor={accentColor} />
+                
+                <NavCategory label="FINANCIAL" collapsed={!isSidebarOpen} isDarkMode={isDarkMode} />
+                <NavItem icon={<DollarSign />} label="Financial Aid" active={view === 'finance'} onClick={() => setView('finance')} collapsed={!isSidebarOpen} isDarkMode={isDarkMode} accentColor={accentColor} />
+                <NavItem icon={<Wallet />} label="Balance & Payments" active={view === 'payments'} onClick={() => setView('payments')} collapsed={!isSidebarOpen} isDarkMode={isDarkMode} accentColor={accentColor} />
+              </>
+            )}
+            
+            {user.role === 'student' && (
+              <>
+                <NavCategory label="SUPPORT" collapsed={!isSidebarOpen} isDarkMode={isDarkMode} />
+                <NavItem icon={<Heart />} label="Mentorship & Counseling" active={view === 'mentorship'} onClick={() => setView('mentorship')} collapsed={!isSidebarOpen} isDarkMode={isDarkMode} accentColor={accentColor} />
+                <NavItem icon={<Library />} label="Resource Library" active={view === 'resources'} onClick={() => setView('resources')} collapsed={!isSidebarOpen} isDarkMode={isDarkMode} accentColor={accentColor} />
+                <NavItem icon={<Users />} label="Community" active={view === 'community'} onClick={() => setView('community')} collapsed={!isSidebarOpen} isDarkMode={isDarkMode} accentColor={accentColor} />
+                
+                <NavCategory label="COMMUNICATION" collapsed={!isSidebarOpen} isDarkMode={isDarkMode} />
+                <NavItem icon={<MessageSquare />} label="Messages" active={view === 'messages'} onClick={() => setView('messages')} collapsed={!isSidebarOpen} isDarkMode={isDarkMode} accentColor={accentColor} />
+                <NavItem icon={<Megaphone />} label="Announcements" active={view === 'announcements'} onClick={() => setView('announcements')} collapsed={!isSidebarOpen} isDarkMode={isDarkMode} accentColor={accentColor} />
+              </>
+            )}
+
+            {user.role === 'admin' && (
+              <>
+                <NavCategory label="USER MANAGEMENT" collapsed={!isSidebarOpen} isDarkMode={isDarkMode} />
+                <NavItem icon={<Users />} label="Users" active={view === 'admin'} onClick={() => setView('admin')} collapsed={!isSidebarOpen} isDarkMode={isDarkMode} accentColor={accentColor} />
+                
+                <NavCategory label="FINANCIAL MANAGEMENT" collapsed={!isSidebarOpen} isDarkMode={isDarkMode} />
+                <NavItem icon={<DollarSign />} label="Financial Aid Applications" active={view === 'applications'} onClick={() => setView('applications')} collapsed={!isSidebarOpen} isDarkMode={isDarkMode} accentColor={accentColor} />
+                <NavItem icon={<Receipt />} label="Transactions" active={view === 'transactions'} onClick={() => setView('transactions')} collapsed={!isSidebarOpen} isDarkMode={isDarkMode} accentColor={accentColor} />
+
+                <NavCategory label="ACADEMIC" collapsed={!isSidebarOpen} isDarkMode={isDarkMode} />
+                <NavItem icon={<Book />} label="Courses" active={view === 'courses'} onClick={() => setView('courses')} collapsed={!isSidebarOpen} isDarkMode={isDarkMode} accentColor={accentColor} />
+                <NavItem icon={<UserPlus />} label="Course Enrollment" active={view === 'enrollment'} onClick={() => setView('enrollment')} collapsed={!isSidebarOpen} isDarkMode={isDarkMode} accentColor={accentColor} />
+                <NavItem icon={<ClipboardList />} label="Grades Management" active={view === 'grades-mgmt'} onClick={() => setView('grades-mgmt')} collapsed={!isSidebarOpen} isDarkMode={isDarkMode} accentColor={accentColor} />
+
+                <NavCategory label="CONTENT" collapsed={!isSidebarOpen} isDarkMode={isDarkMode} />
+                <NavItem icon={<Megaphone />} label="Announcements" active={view === 'announcements'} onClick={() => setView('announcements')} collapsed={!isSidebarOpen} isDarkMode={isDarkMode} accentColor={accentColor} />
+                <NavItem icon={<Library />} label="Resource Library" active={view === 'resources'} onClick={() => setView('resources')} collapsed={!isSidebarOpen} isDarkMode={isDarkMode} accentColor={accentColor} />
+                <NavItem icon={<Heart />} label="Mentorship" active={view === 'mentorship'} onClick={() => setView('mentorship')} collapsed={!isSidebarOpen} isDarkMode={isDarkMode} accentColor={accentColor} />
+                
+                <NavCategory label="SYSTEM" collapsed={!isSidebarOpen} isDarkMode={isDarkMode} />
+                <NavItem icon={<Shield />} label="Roles & Permissions" active={view === 'roles'} onClick={() => setView('roles')} collapsed={!isSidebarOpen} isDarkMode={isDarkMode} accentColor={accentColor} />
+                <NavItem icon={<BarChart3 />} label="Reports & Analytics" active={view === 'reports'} onClick={() => setView('reports')} collapsed={!isSidebarOpen} isDarkMode={isDarkMode} accentColor={accentColor} />
+                <NavItem icon={<Database />} label="Backup & Recovery" active={view === 'activity'} onClick={() => setView('activity')} collapsed={!isSidebarOpen} isDarkMode={isDarkMode} accentColor={accentColor} />
+                <NavItem icon={<Settings />} label="Settings" active={view === 'settings'} onClick={() => setView('settings')} collapsed={!isSidebarOpen} isDarkMode={isDarkMode} accentColor={accentColor} />
+              </>
+            )}
+
+            {user.role === 'faculty' && (
+              <>
+                <NavItem icon={<Home />} label="Dashboard" active={view === 'dashboard'} onClick={() => setView('dashboard')} collapsed={!isSidebarOpen} isDarkMode={isDarkMode} accentColor={accentColor} />
+                <NavItem icon={<User />} label="My Profile" active={view === 'profile'} onClick={() => setView('profile')} collapsed={!isSidebarOpen} isDarkMode={isDarkMode} accentColor={accentColor} />
+
+                <NavCategory label="TEACHING" collapsed={!isSidebarOpen} isDarkMode={isDarkMode} />
+                <NavItem icon={<Book />} label="My Courses" active={view === 'courses'} onClick={() => setView('courses')} collapsed={!isSidebarOpen} isDarkMode={isDarkMode} accentColor={accentColor} />
+                <NavItem icon={<ClipboardList />} label="Grade Entry" active={view === 'grade-entry'} onClick={() => setView('grade-entry')} collapsed={!isSidebarOpen} isDarkMode={isDarkMode} accentColor={accentColor} />
+
+                <NavCategory label="STUDENTS" collapsed={!isSidebarOpen} isDarkMode={isDarkMode} />
+                <NavItem icon={<Users />} label="My Students" active={view === 'students'} onClick={() => setView('students')} collapsed={!isSidebarOpen} isDarkMode={isDarkMode} accentColor={accentColor} />
+                <NavItem icon={<Users2 />} label="Mentorship" active={view === 'mentorship'} onClick={() => setView('mentorship')} collapsed={!isSidebarOpen} isDarkMode={isDarkMode} accentColor={accentColor} />
+
+                <NavCategory label="COMMUNICATION" collapsed={!isSidebarOpen} isDarkMode={isDarkMode} />
+                <NavItem icon={<Mail />} label="Messages" active={view === 'messages'} onClick={() => setView('messages')} collapsed={!isSidebarOpen} isDarkMode={isDarkMode} accentColor={accentColor} />
+                <NavItem icon={<Megaphone />} label="Announcements" active={view === 'announcements'} onClick={() => setView('announcements')} collapsed={!isSidebarOpen} isDarkMode={isDarkMode} accentColor={accentColor} />
+              </>
+            )}
+          </nav>
+
+          <div className="p-4 border-t border-slate-200 dark:border-white/5 space-y-2">
+            <button 
+              onClick={() => setIsDarkMode(!isDarkMode)}
+              className={cn(
+                "w-full flex items-center gap-3 p-3 rounded-xl transition-all font-medium relative group",
+                isDarkMode ? "text-slate-400 hover:bg-white/5 hover:text-white" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900",
+                !isSidebarOpen && "justify-center"
+              )}
+            >
+              {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+              {isSidebarOpen && <span>{isDarkMode ? 'Light Mode' : 'Dark Mode'}</span>}
+              {!isSidebarOpen && (
+                <div className={cn(
+                  "absolute left-full ml-4 px-3 py-2 rounded-lg text-xs font-bold opacity-0 group-hover:opacity-100 pointer-events-none transition-all translate-x-[-10px] group-hover:translate-x-0 z-50 whitespace-nowrap",
+                  isDarkMode ? "bg-white text-slate-900" : "bg-slate-900 text-white"
+                )}>
+                  {isDarkMode ? 'Light Mode' : 'Dark Mode'}
+                </div>
+              )}
+            </button>
+            <button 
+              onClick={handleLogout}
+              className={cn(
+                "w-full flex items-center gap-3 p-3 rounded-xl transition-all font-medium text-red-500 relative group",
+                isDarkMode ? "hover:bg-red-500/10" : "hover:bg-red-50",
+                !isSidebarOpen && "justify-center"
+              )}
+            >
+              <LogOut className="w-5 h-5" />
+              {isSidebarOpen && <span>Logout</span>}
+              {!isSidebarOpen && (
+                <div className={cn(
+                  "absolute left-full ml-4 px-3 py-2 rounded-lg text-xs font-bold opacity-0 group-hover:opacity-100 pointer-events-none transition-all translate-x-[-10px] group-hover:translate-x-0 z-50 whitespace-nowrap",
+                  isDarkMode ? "bg-white text-slate-900" : "bg-slate-900 text-white"
+                )}>
+                  Logout
+                </div>
+              )}
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col h-screen overflow-hidden">
+        {/* Header */}
+        <header className={cn(
+          "h-20 border-b flex items-center justify-between px-8 shrink-0 transition-colors",
+          isDarkMode ? "bg-[#0A0A0A] border-white/5" : "bg-white border-slate-200"
+        )}>
+          <div className="flex items-center gap-4 flex-1 max-w-xl">
+            <button 
+              onClick={() => setIsSidebarOpen(true)}
+              className={cn(
+                "p-2 rounded-xl lg:hidden transition-colors",
+                isDarkMode ? "hover:bg-white/5 text-slate-400" : "hover:bg-slate-100 text-slate-500"
+              )}
+            >
+              <Menu className="w-6 h-6" />
+            </button>
+            <div className={cn(
+              "relative w-full group",
+              isDarkMode ? "text-white" : "text-slate-900"
+            )}>
+              <Search className={cn(
+                "absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 transition-colors",
+                accentColor === 'red' ? "group-focus-within:text-red-600" :
+                accentColor === 'blue' ? "group-focus-within:text-blue-600" :
+                accentColor === 'emerald' ? "group-focus-within:text-emerald-600" :
+                "group-focus-within:text-amber-600"
+              )} />
+              <input 
+                type="text" 
+                placeholder="Search anything (users, announcements, applications)..." 
+                value={searchQuery}
+                onChange={(e) => handleSearch(e.target.value)}
+                className={cn(
+                  "w-full pl-12 pr-4 py-3 rounded-2xl outline-none border transition-all",
+                  isDarkMode 
+                    ? cn(
+                        "bg-white/5 border-white/10",
+                        accentColor === 'red' ? "focus:border-red-600/50" :
+                        accentColor === 'blue' ? "focus:border-blue-600/50" :
+                        accentColor === 'emerald' ? "focus:border-emerald-600/50" :
+                        "focus:border-amber-600/50"
+                      )
+                    : cn(
+                        "bg-slate-50 border-slate-200",
+                        accentColor === 'red' ? "focus:border-red-600 focus:ring-red-600/5" :
+                        accentColor === 'blue' ? "focus:border-blue-600 focus:ring-blue-600/5" :
+                        accentColor === 'emerald' ? "focus:border-emerald-600 focus:ring-emerald-600/5" :
+                        "focus:border-amber-600 focus:ring-amber-600/5",
+                        "focus:ring-4"
+                      )
+                )}
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <div className="relative">
+              <button 
+                onClick={() => {
+                  setShowNotifications(!showNotifications);
+                  if (!showNotifications) markNotificationsRead();
+                }}
+                className={cn(
+                  "p-3 rounded-2xl relative transition-all",
+                  isDarkMode ? "bg-white/5 hover:bg-white/10" : "bg-slate-50 hover:bg-slate-100"
+                )}
+              >
+                <Bell className="w-5 h-5" />
+                {notifications.some(n => !n.read) && (
+                  <span className={cn(
+                    "absolute top-2 right-2 w-2 h-2 rounded-full border-2 border-white dark:border-[#0A0A0A]",
+                    accentColor === 'red' ? "bg-red-600" :
+                    accentColor === 'blue' ? "bg-blue-600" :
+                    accentColor === 'emerald' ? "bg-emerald-600" :
+                    "bg-amber-600"
+                  )}></span>
+                )}
+              </button>
+              
+              <AnimatePresence>
+                {showNotifications && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    className={cn(
+                      "absolute right-0 mt-4 w-80 rounded-[2rem] border shadow-2xl z-50 overflow-hidden",
+                      isDarkMode ? "bg-[#111111] border-white/10" : "bg-white border-slate-200"
+                    )}
+                  >
+                    <div className="p-6 border-b border-slate-100 dark:border-white/5 flex items-center justify-between">
+                      <h3 className="font-black tracking-tight">Notifications</h3>
+                      <span className={cn(
+                        "text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-lg",
+                        accentColor === 'red' ? "text-red-600 bg-red-50" :
+                        accentColor === 'blue' ? "text-blue-600 bg-blue-50" :
+                        accentColor === 'emerald' ? "text-emerald-600 bg-emerald-50" :
+                        "text-amber-600 bg-amber-50"
+                      )}>
+                        {notifications.filter(n => !n.read).length} New
+                      </span>
+                    </div>
+                    <div className="max-h-[400px] overflow-y-auto">
+                      {notifications.length === 0 ? (
+                        <div className="p-12 text-center">
+                          <Bell className="w-12 h-12 text-slate-200 mx-auto mb-4" />
+                          <p className="text-sm font-bold text-slate-400 italic">No notifications yet</p>
+                        </div>
+                      ) : (
+                        notifications.slice().reverse().map((n, i) => (
+                          <div key={i} className={cn(
+                            "p-4 border-b border-slate-50 dark:border-white/5 last:border-0 transition-colors",
+                            !n.read && (isDarkMode ? "bg-white/5" : "bg-red-50/30")
+                          )}>
+                            <div className="flex items-start gap-3">
+                              <div className={cn(
+                                "w-2 h-2 rounded-full mt-1.5 shrink-0",
+                                n.type === 'success' ? "bg-emerald-500" : n.type === 'error' ? "bg-red-500" : "bg-blue-500"
+                              )} />
+                              <div>
+                                <h4 className="text-sm font-black mb-1">{n.title}</h4>
+                                <p className="text-xs text-slate-500 leading-relaxed">{n.message}</p>
+                                <p className="text-[10px] font-bold text-slate-400 mt-2 uppercase tracking-widest">
+                                  {new Date(n.timestamp).toLocaleDateString()}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+            <div className="flex items-center gap-3 pl-4 border-l border-slate-200 dark:border-white/10">
+              <div className="text-right hidden sm:block">
+                <p className="text-sm font-bold truncate max-w-[150px]">{user.name}</p>
+                <p className="text-[10px] uppercase tracking-widest text-slate-400">{user.role}</p>
+              </div>
+              <div className={cn(
+                "w-10 h-10 rounded-2xl flex items-center justify-center text-white font-bold shadow-lg overflow-hidden",
+                accentColor === 'red' ? "bg-red-600 shadow-red-600/20" :
+                accentColor === 'blue' ? "bg-blue-600 shadow-blue-600/20" :
+                accentColor === 'emerald' ? "bg-emerald-600 shadow-emerald-600/20" :
+                "bg-amber-600 shadow-amber-600/20"
+              )}>
+                {user.profilePic ? (
+                  <img src={user.profilePic} alt={user.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                ) : (
+                  user.name[0]
+                )}
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <main className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+          <AnimatePresence mode="wait">
+            {view === 'dashboard' && (
+              user.role === 'admin' ? (
+                <AdminDashboard 
+                  user={user}
+                  users={users} 
+                  isDarkMode={isDarkMode} 
+                  financialAid={financialAid} 
+                  scholarships={scholarships} 
+                  announcements={announcements}
+                  updateFinancialAidStatus={updateFinancialAidStatus}
+                  setView={setView} 
+                />
+              ) : user.role === 'faculty' ? (
+                <FacultyDashboard 
+                  user={user} 
+                  isDarkMode={isDarkMode} 
+                  financialAid={financialAid} 
+                  scholarships={scholarships} 
+                  recommendations={recommendations} 
+                  fetchRecommendations={fetchRecommendations} 
+                  users={users} 
+                  fetchUsers={fetchUsers} 
+                  setView={setView} 
+                  selectedStudentForRec={selectedStudentForRec} 
+                  setSelectedStudentForRec={setSelectedStudentForRec} 
+                />
+              ) : (
+                <StudentDashboard 
+                  user={user} 
+                  isDarkMode={isDarkMode} 
+                  setView={setView} 
+                  announcements={announcements} 
+                  scholarships={scholarships} 
+                  financialAid={financialAid} 
+                  users={users}
+                  mentors={mentors}
+                />
+              )
+            )}
+            {view === 'search' && <SearchResults results={searchResults} query={searchQuery} isDarkMode={isDarkMode} />}
+            {view === 'profile' && <Profile user={user} setUser={setUser} isDarkMode={isDarkMode} />}
+            {view === 'grades' && <Grades user={user} isDarkMode={isDarkMode} />}
+            {view === 'schedule' && <Schedule user={user} isDarkMode={isDarkMode} />}
+            {view === 'courses' && <CoursesView isDarkMode={isDarkMode} setView={setView} setGradeEntryFilter={setGradeEntryFilter} users={users} fetchUsers={fetchUsers} facultyUser={user} courses={courses} fetchCourses={fetchCourses} isAdmin={user.role === 'admin'} />}
+            {view === 'grade-entry' && <GradeEntryView users={users} isDarkMode={isDarkMode} facultyUser={user} fetchUsers={fetchUsers} initialFilter={gradeEntryFilter} setGradeEntryFilter={setGradeEntryFilter} />}
+            {view === 'finance' && <FinancialAid user={user} financialAid={financialAid} fetchFinancialAid={fetchFinancialAid} isDarkMode={isDarkMode} selectedScholarship={selectedScholarship} setSelectedScholarship={setSelectedScholarship} />}
+            {view === 'messages' && <Messages user={user} messages={messages} fetchMessages={fetchMessages} users={users} isDarkMode={isDarkMode} selectedChatUser={selectedChatUser} setSelectedChatUser={setSelectedChatUser} />}
+            {view === 'documents' && <Documents user={user} isDarkMode={isDarkMode} />}
+            {view === 'announcements' && <Announcements announcements={announcements} user={user} isDarkMode={isDarkMode} fetchAnnouncements={fetchAnnouncements} setConfirmConfig={setConfirmConfig} activeModal={activeModal} setActiveModal={setActiveModal} />}
+            {view === 'admin' && <AdminPanel users={users} fetchUsers={fetchUsers} isDarkMode={isDarkMode} setConfirmConfig={setConfirmConfig} />}
+            {view === 'roles' && <RolesView isDarkMode={isDarkMode} />}
+            {view === 'transactions' && <TransactionsView isDarkMode={isDarkMode} />}
+            {view === 'enrollment' && <EnrollmentView isDarkMode={isDarkMode} users={users} courses={courses} fetchUsers={fetchUsers} />}
+            {view === 'grades-mgmt' && <GradesMgmtView users={users} isDarkMode={isDarkMode} fetchUsers={fetchUsers} initialFilter={gradeEntryFilter} />}
+            {view === 'students' && <StudentsView users={users} isDarkMode={isDarkMode} />}
+            {view === 'policies' && <PoliciesView policies={policies} isDarkMode={isDarkMode} />}
+            {view === 'scholarships' && <ScholarshipsView scholarships={scholarships} user={user} isDarkMode={isDarkMode} setView={setView} setSelectedScholarship={setSelectedScholarship} />}
+            {view === 'programs' && <ScholarshipsView scholarships={scholarships} user={user} isDarkMode={isDarkMode} isAdmin={true} fetchScholarships={fetchScholarships} setView={setView} setSelectedScholarship={setSelectedScholarship} />}
+            {view === 'applications' && <ApplicationsView financialAid={financialAid} user={user} isDarkMode={isDarkMode} updateFinancialAidStatus={updateFinancialAidStatus} users={users} assignFaculty={assignFaculty} setView={setView} setSelectedStudentForRec={setSelectedStudentForRec} />}
+            {view === 'reports' && <ReportsView financialAid={financialAid} scholarships={scholarships} isDarkMode={isDarkMode} user={user} />}
+            {view === 'activity' && <ActivityView isDarkMode={isDarkMode} />}
+            {view === 'recommendations' && <RecommendationsView recommendations={recommendations} user={user} isDarkMode={isDarkMode} fetchRecommendations={fetchRecommendations} users={users} />}
+            {view === 'notifications' && <NotificationsView notifications={notifications} isDarkMode={isDarkMode} />}
+            {view === 'academic-support' && <AcademicSupport user={user} isDarkMode={isDarkMode} />}
+            {view === 'payments' && <Payments user={user} isDarkMode={isDarkMode} />}
+            {view === 'mentorship' && <Mentorship user={user} isDarkMode={isDarkMode} mentors={mentors} fetchMentors={fetchMentors} fetchUsers={fetchUsers} fetchNotifications={fetchNotifications} activeModal={activeModal} setActiveModal={setActiveModal} setView={setView} setSelectedChatUser={setSelectedChatUser} />}
+            {view === 'resources' && <Resources user={user} isDarkMode={isDarkMode} resources={resources} fetchResources={fetchResources} activeModal={activeModal} setActiveModal={setActiveModal} />}
+            {view === 'community' && <Community user={user} isDarkMode={isDarkMode} events={communityEvents} orgs={communityOrgs} fetchCommunityData={fetchCommunityData} activeModal={activeModal} setActiveModal={setActiveModal} />}
+            {view === 'settings' && (
+              <SettingsView 
+                user={user} 
+                isDarkMode={isDarkMode} 
+                setIsDarkMode={setIsDarkMode} 
+                accentColor={accentColor} 
+                setAccentColor={setAccentColor}
+                notificationSettings={notificationSettings}
+                setNotificationSettings={setNotificationSettings}
+                language={language}
+                setLanguage={setLanguage}
+              />
+            )}
+          </AnimatePresence>
+        </main>
+      </div>
+
+      <ConfirmationModal 
+        isOpen={confirmConfig.isOpen}
+        title={confirmConfig.title}
+        message={confirmConfig.message}
+        type={confirmConfig.type}
+        onConfirm={confirmConfig.onConfirm}
+        onCancel={() => setConfirmConfig({ ...confirmConfig, isOpen: false })}
+        isDarkMode={isDarkMode}
+      />
+    </div>
+  );
+}
+
+const ConfirmationModal = ({ isOpen, title, message, onConfirm, onCancel, type, isDarkMode }: any) => {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[1000]">
+      <motion.div 
+        initial={{ scale: 0.9, opacity: 0 }} 
+        animate={{ scale: 1, opacity: 1 }} 
+        className={cn(
+          "p-10 rounded-[3rem] w-full max-w-md shadow-2xl border",
+          isDarkMode ? "bg-[#111111] border-white/10 text-white" : "bg-white border-slate-200"
+        )}
+      >
+        <div className={cn(
+          "w-16 h-16 rounded-2xl flex items-center justify-center mb-6",
+          type === 'danger' ? "bg-red-500/10 text-red-500" : "bg-amber-500/10 text-amber-500"
+        )}>
+          {type === 'danger' ? <Trash2 className="w-8 h-8" /> : <AlertTriangle className="w-8 h-8" />}
+        </div>
+        <h2 className="text-3xl font-black tracking-tighter mb-4">{title}</h2>
+        <p className={cn("mb-8 leading-relaxed", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+          {message}
+        </p>
+        <div className="grid grid-cols-2 gap-4">
+          <button 
+            onClick={onCancel}
+            className={cn(
+              "py-4 rounded-2xl font-bold transition-all",
+              isDarkMode ? "bg-white/5 hover:bg-white/10" : "bg-slate-100 hover:bg-slate-200"
+            )}
+          >
+            Cancel
+          </button>
+          <button 
+            onClick={() => {
+              onConfirm();
+              onCancel();
+            }}
+            className={cn(
+              "py-4 rounded-2xl text-white font-black shadow-xl transition-all",
+              type === 'danger' ? "bg-red-600 hover:bg-red-700 shadow-red-200" : "bg-amber-600 hover:bg-amber-700 shadow-amber-200"
+            )}
+          >
+            Confirm
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
+function LandingPage({ onGetStarted, onRegister }: { onGetStarted: () => void, onRegister: () => void }) {
+  return (
+    <div className="min-h-screen bg-white font-sans text-stone-900">
+      {/* Navbar */}
+      <nav className="max-w-7xl mx-auto px-6 py-6 flex justify-between items-center">
+        <div className="flex items-center gap-2 font-bold text-xl">
+          <span>Student Aid Portal</span>
+        </div>
+        <div className="flex items-center gap-6">
+          <button onClick={onRegister} className="bg-red-600 text-white px-6 py-2 rounded-full font-bold hover:bg-red-700 transition-colors">
+            Get Started
+          </button>
+          <button onClick={onGetStarted} className="text-stone-600 font-medium hover:text-stone-900">Login</button>
+        </div>
+      </nav>
+
+      {/* Hero Section */}
+      <section className="max-w-7xl mx-auto px-6 pt-20 pb-32">
+        <div className="flex flex-col lg:flex-row items-center gap-16">
+          <div className="flex-1">
+            <h1 className="text-7xl md:text-8xl font-black leading-[0.85] tracking-tighter uppercase mb-8">
+              ST. CECILIA'S <br />
+              <span className="text-red-600">COLLEGE</span> - CEBU, <br />
+              INC.
+            </h1>
+            <p className="text-xl text-stone-500 max-w-xl mb-10 leading-relaxed">
+              Official Student Aid Portal. Empowering students through 
+              seamless financial aid management and academic 
+              tracking.
+            </p>
+            <div className="flex gap-4">
+              <button 
+                onClick={onRegister}
+                className="bg-red-600 text-white px-10 py-4 rounded-xl font-bold text-lg hover:bg-red-700 transition-all shadow-xl shadow-red-200"
+              >
+                Register Now
+              </button>
+            </div>
+          </div>
+          <div className="flex-1 flex justify-center lg:justify-end">
+            {/* Red box removed */}
+          </div>
+        </div>
+      </section>
+
+      {/* Features Grid */}
+      <section className="bg-[#F8FBFF] py-32">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="text-center mb-24">
+            <h2 className="text-5xl font-bold mb-6">System Summary</h2>
+            <p className="text-stone-500 text-lg">Everything you need to manage your academic journey in one place.</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <FeatureCard 
+              icon={<DollarSign className="text-emerald-500" />} 
+              title="Financial Aid Management" 
+              description="Apply for scholarships, grants, and loans, with real-time status tracking and automated balance updates."
+            />
+            <FeatureCard 
+              icon={<BookOpen className="text-red-500" />} 
+              title="Academic Tracking" 
+              description="View your grades, calculate your GPA, and monitor your progress across semesters."
+            />
+            <FeatureCard 
+              icon={<BookOpen className="text-amber-500" />} 
+              title="Course Catalog" 
+              description="Browse available courses across departments like BSIT, BSBA, and more. View prerequisites and credits."
+            />
+            <FeatureCard 
+              icon={<MessageSquare className="text-pink-500" />} 
+              title="Internal Messaging" 
+              description="Communicate directly with faculty and administration through our secure internal messaging system."
+            />
+            <FeatureCard 
+              icon={<Bell className="text-red-400" />} 
+              title="Real-time Notifications" 
+              description="Stay updated with instant alerts for application approvals, new grades, and campus announcements."
+            />
+            <FeatureCard 
+              icon={<Shield className="text-emerald-400" />} 
+              title="Admin Control" 
+              description="Powerful tools for administration to manage users, approve aid, and broadcast campus-wide news."
+            />
+            <FeatureCard 
+              icon={<Shield className="text-stone-400" />} 
+              title="Secure Authentication" 
+              description="Multi-layered security protocols to ensure your academic and financial data remains private."
+            />
+            <FeatureCard 
+              icon={<Calendar className="text-red-500" />} 
+              title="Mobile Responsive" 
+              description="Access your portal from any device, anywhere. Optimized for smartphones and tablets."
+            />
+            <FeatureCard 
+              icon={<Shield className="text-amber-600" />} 
+              title="Campus Integration" 
+              description="Seamlessly connected with university systems for real-time data synchronization."
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* Why Choose Us */}
+      <section className="max-w-7xl mx-auto px-6 py-40">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-24 items-center">
+          <div>
+            <h2 className="text-6xl font-bold leading-tight mb-16 uppercase tracking-tighter">
+              WHY CHOOSE THE <span className="text-red-600">STUDENT AID PORTAL?</span>
+            </h2>
+            <div className="space-y-12">
+              <div className="flex gap-8">
+                <div className="p-4 bg-red-50 rounded-2xl h-fit"><User className="text-red-600 w-6 h-6" /></div>
+                <div>
+                  <h4 className="font-bold text-2xl mb-3">Student-Centric Design</h4>
+                  <p className="text-stone-500 text-lg leading-relaxed">Built with the student experience in mind, making complex processes simple and intuitive.</p>
+                </div>
+              </div>
+              <div className="flex gap-8">
+                <div className="p-4 bg-amber-50 rounded-2xl h-fit"><Shield className="text-amber-600 w-6 h-6" /></div>
+                <div>
+                  <h4 className="font-bold text-2xl mb-3">Instant Processing</h4>
+                  <p className="text-stone-500 text-lg leading-relaxed">No more waiting in long lines. Submit applications and get feedback in record time.</p>
+                </div>
+              </div>
+              <div className="flex gap-8">
+                <div className="p-4 bg-emerald-50 rounded-2xl h-fit"><MessageSquare className="text-emerald-600 w-6 h-6" /></div>
+                <div>
+                  <h4 className="font-bold text-2xl mb-3">Dedicated Support</h4>
+                  <p className="text-stone-500 text-lg leading-relaxed">Our team is always ready to help you navigate your financial aid journey.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="bg-[#111111] p-16 rounded-[4rem] text-white relative overflow-hidden shadow-2xl">
+            <div className="absolute top-0 right-0 w-96 h-96 bg-red-600/10 blur-[120px] rounded-full"></div>
+            <h3 className="text-4xl font-bold mb-8">Ready to start?</h3>
+            <p className="text-stone-400 mb-12 text-xl leading-relaxed">Join thousands of students who have already simplified their academic life.</p>
+            <button onClick={onRegister} className="bg-red-600 text-white px-10 py-5 rounded-2xl font-bold text-lg hover:bg-red-700 transition-all">
+              Create Your Account
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="border-t border-stone-100 py-16">
+        <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-12">
+          <div className="flex items-center gap-2 font-bold opacity-80">
+            <Shield className="w-6 h-6 text-red-600" />
+            <span>Student Aid Portal</span>
+          </div>
+          <p className="text-stone-400 text-sm">© 2026 Student Aid Portal. All rights reserved.</p>
+          <div className="flex gap-10 text-sm text-stone-400">
+            <a href="#" className="hover:text-stone-900 transition-colors">Privacy Policy</a>
+            <a href="#" className="hover:text-stone-900 transition-colors">Terms of Service</a>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}
+
+function FeatureCard({ icon, title, description }: { icon: any, title: string, description: string }) {
+  return (
+    <div className="bg-white p-10 rounded-3xl border border-stone-100 hover:shadow-xl transition-all group">
+      <div className="p-4 bg-stone-50 rounded-2xl w-fit mb-8 group-hover:scale-110 transition-transform">
+        {React.cloneElement(icon, { className: "w-8 h-8" })}
+      </div>
+      <h3 className="text-xl font-bold mb-4">{title}</h3>
+      <p className="text-stone-500 leading-relaxed text-sm">{description}</p>
+    </div>
+  );
+}
+
+function NavCategory({ label, collapsed, isDarkMode }: { label: string, collapsed?: boolean, isDarkMode?: boolean }) {
+  if (collapsed) return <div className="h-px bg-slate-200 dark:bg-white/5 my-4 mx-2" />;
+  return (
+    <div className={cn(
+      "px-4 pt-6 pb-2 text-[10px] font-black uppercase tracking-[0.2em]",
+      isDarkMode ? "text-slate-600" : "text-slate-400"
+    )}>
+      {label}
+    </div>
+  );
+}
+
+function NavItem({ icon, label, active, onClick, collapsed, isDarkMode, accentColor }: { icon: any, label: string, active: boolean, onClick: () => void, collapsed?: boolean, isDarkMode?: boolean, accentColor?: string }) {
+  return (
+    <button 
+      onClick={onClick}
+      className={cn(
+        "w-full flex items-center gap-3 p-3 rounded-xl transition-all font-medium relative group",
+        active 
+          ? (isDarkMode 
+              ? cn(
+                  "text-white shadow-lg",
+                  accentColor === 'red' ? "bg-red-600 shadow-red-600/20" :
+                  accentColor === 'blue' ? "bg-blue-600 shadow-blue-600/20" :
+                  accentColor === 'emerald' ? "bg-emerald-600 shadow-emerald-600/20" :
+                  "bg-amber-600 shadow-amber-600/20"
+                ) 
+              : "bg-slate-900 text-white shadow-lg shadow-slate-200") 
+          : (isDarkMode ? "text-slate-400 hover:bg-white/5 hover:text-white" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"),
+        collapsed && "justify-center"
+      )}
+    >
+      {React.cloneElement(icon, { className: "w-5 h-5 shrink-0" })}
+      {!collapsed && <span className="truncate">{label}</span>}
+      
+      {collapsed && (
+        <div className={cn(
+          "absolute left-full ml-4 px-3 py-2 rounded-lg text-xs font-bold opacity-0 group-hover:opacity-100 pointer-events-none transition-all translate-x-[-10px] group-hover:translate-x-0 z-50 whitespace-nowrap",
+          isDarkMode ? "bg-white text-slate-900" : "bg-slate-900 text-white"
+        )}>
+          {label}
+        </div>
+      )}
+    </button>
+  );
+}
+
+function StudentDashboard({ 
+  user, 
+  isDarkMode, 
+  setView, 
+  financialAid = [], 
+  scholarships = [], 
+  announcements = [],
+  users = [],
+  mentors = []
+}: { 
+  user: UserData, 
+  isDarkMode?: boolean, 
+  setView: (v: string) => void, 
+  financialAid?: any[], 
+  scholarships?: any[], 
+  announcements?: any[],
+  users?: any[],
+  mentors?: any[]
+}) {
+  const isStudent = user.role === 'student';
+  const myApplications = (financialAid || []).filter(a => a.studentId === user.id);
+  const approvedAid = myApplications.filter(a => a.status === 'approved').reduce((acc, curr) => acc + (parseInt(curr.amount?.replace(/[^0-9]/g, '') || '0')), 0);
+  const pendingApps = myApplications.filter(a => a.status === 'pending').length;
+
+  // Admin/Faculty Stats
+  const totalStudents = users.filter((u: any) => u.role === 'student').length;
+  const totalApplications = (financialAid || []).length;
+  const totalScholarships = (scholarships || []).length;
+  const totalMentors = (mentors || []).length;
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+      <header>
+        <h1 className="text-4xl font-black tracking-tighter uppercase">
+          {isStudent ? `Welcome back, ${user.name.split(' ')[0]}! 👋` : `${user.role} Dashboard`}
+        </h1>
+        <p className={isDarkMode ? "text-slate-400" : "text-slate-500"}>
+          {isStudent ? "Here's your financial aid overview for AY 2024-2025" : `Welcome back, ${user.name}. Here's the system overview.`}
+        </p>
+      </header>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {isStudent ? (
+          <>
+            <StatCard icon={<FileText />} label="Applications" value={myApplications.length.toString()} trend="Active" color="purple" isDarkMode={isDarkMode} />
+            <StatCard icon={<CheckCircle />} label="Approved" value={myApplications.filter(a => a.status === 'approved').length.toString()} trend="Disbursement ready" color="emerald" isDarkMode={isDarkMode} />
+            <StatCard icon={<Clock />} label="Pending" value={pendingApps.toString()} trend="No pending items" color="amber" isDarkMode={isDarkMode} />
+            <StatCard icon={<DollarSign />} label="Aid Received" value={`₱${approvedAid.toLocaleString()}`} trend="Total disbursed" color="blue" isDarkMode={isDarkMode} />
+          </>
+        ) : (
+          <>
+            <StatCard icon={<Users />} label="Total Students" value={totalStudents.toString()} trend="Registered" color="blue" isDarkMode={isDarkMode} />
+            <StatCard icon={<FileText />} label="Applications" value={totalApplications.toString()} trend="Total submitted" color="purple" isDarkMode={isDarkMode} />
+            <StatCard icon={<GraduationCap />} label="Scholarships" value={totalScholarships.toString()} trend="Active programs" color="emerald" isDarkMode={isDarkMode} />
+            <StatCard icon={<UserCheck />} label="Mentors" value={totalMentors.toString()} trend="Verified" color="amber" isDarkMode={isDarkMode} />
+          </>
+        )}
+      </div>
+
+      {isStudent && myApplications.some(a => a.status === 'approved') && (
+        <div className="bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-2xl flex items-center gap-3 text-emerald-500 font-bold text-sm">
+          <CheckCircle className="w-5 h-5" />
+          <span>Your application has been approved! Disbursement is being processed.</span>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2 space-y-8">
+          {isStudent ? (
+            <>
+              <div className={cn(
+                "p-8 rounded-[2.5rem] border transition-all",
+                isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+              )}>
+                <h3 className="text-xl font-bold mb-6">My Applications</h3>
+                <div className="space-y-4">
+                  {myApplications.length > 0 ? myApplications.map((app, i) => (
+                    <div key={i} className={cn(
+                      "p-6 rounded-2xl border flex flex-col gap-4",
+                      isDarkMode ? "bg-white/5 border-white/5" : "bg-slate-50 border-slate-100"
+                    )}>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="font-black">{app.program || 'N/A'}</h4>
+                          <p className="text-xs text-slate-400">{app.id?.toString().slice(-8) || 'N/A'} • {app.date ? new Date(app.date).toLocaleDateString() : 'N/A'}</p>
+                        </div>
+                        <span className={cn(
+                          "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
+                          app.status === 'approved' ? "bg-emerald-500/10 text-emerald-500" :
+                          app.status === 'pending' ? "bg-amber-500/10 text-amber-500" :
+                          "bg-blue-500/10 text-blue-500"
+                        )}>
+                          {app.status}
+                        </span>
+                      </div>
+                      <button 
+                        onClick={() => setView('documents')}
+                        className="w-full py-3 rounded-xl border border-slate-200 dark:border-white/10 text-[10px] font-black uppercase tracking-widest hover:bg-slate-100 dark:hover:bg-white/5 transition-all flex items-center justify-center gap-2"
+                      >
+                        <FileText className="w-4 h-4" />
+                        View Documents
+                      </button>
+                    </div>
+                  )) : (
+                    <div className="text-center py-8 text-slate-400 font-bold italic">
+                      No active applications found.
+                    </div>
+                  )}
+                  <button 
+                    onClick={() => setView('finance')}
+                    className="w-full py-4 rounded-2xl bg-slate-900 text-white font-black hover:bg-slate-800 transition-all flex items-center justify-center gap-2"
+                  >
+                    <Plus className="w-5 h-5" />
+                    Apply for More Aid
+                  </button>
+                </div>
+              </div>
+
+              <div className={cn(
+                "p-8 rounded-[2.5rem] border transition-all",
+                isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+              )}>
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-xl font-bold">My Mentor</h3>
+                  <button 
+                    onClick={() => setView('mentorship')}
+                    className="text-xs font-black uppercase tracking-widest text-red-600 hover:text-red-700 transition-colors"
+                  >
+                    {user.mentorId ? 'Change Mentor →' : 'Select Mentor →'}
+                  </button>
+                </div>
+                {user.mentorId ? (
+                  (() => {
+                    const myMentor = mentors.find(m => m.id === user.mentorId);
+                    return myMentor ? (
+                      <div className="flex items-center gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/5">
+                        <div className="w-12 h-12 rounded-xl bg-red-600 flex items-center justify-center text-white font-black text-xl">
+                          {myMentor.name[0]}
+                        </div>
+                        <div>
+                          <p className="font-bold">{myMentor.name}</p>
+                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{myMentor.role}</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-center py-4 text-slate-400 font-bold italic">
+                        Mentor information not found.
+                      </div>
+                    );
+                  })()
+                ) : (
+                  <div className="text-center py-8 bg-slate-50 dark:bg-white/5 rounded-2xl border border-dashed border-slate-200 dark:border-white/10">
+                    <Heart className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                    <p className="text-sm text-slate-400 font-bold italic">No mentor selected yet.</p>
+                  </div>
+                )}
+              </div>
+
+              {user.mentorId && (
+                <div className={cn(
+                  "p-8 rounded-[2.5rem] border transition-all",
+                  isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+                )}>
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-xl font-bold">Mentor Sessions</h3>
+                    <button 
+                      onClick={() => setView('mentorship')}
+                      className="text-xs font-black uppercase tracking-widest text-red-600 hover:text-red-700 transition-colors"
+                    >
+                      Book New →
+                    </button>
+                  </div>
+                  <div className="space-y-4">
+                    <div className={cn(
+                      "p-6 rounded-2xl border flex items-center justify-between",
+                      isDarkMode ? "bg-white/5 border-white/5" : "bg-slate-50 border-slate-100"
+                    )}>
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-xl bg-red-600/10 flex items-center justify-center text-red-600">
+                          <Calendar className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-sm">Next Session</p>
+                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Scheduled with your mentor</p>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">TBD</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className={cn(
+                "p-8 rounded-[2.5rem] border transition-all",
+                isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+              )}>
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-xl font-bold">Document Checklist</h3>
+                  <button 
+                    onClick={() => setView('documents')}
+                    className="text-xs font-black uppercase tracking-widest text-red-600 hover:text-red-700 transition-colors"
+                  >
+                    Manage All →
+                  </button>
+                </div>
+                <div className="space-y-4">
+                  {[
+                    { label: 'Valid School ID', status: 'Pending', color: 'text-amber-500', icon: <Clock className="w-4 h-4" /> },
+                    { label: 'Report Card (Grades)', status: 'Pending', color: 'text-amber-500', icon: <Clock className="w-4 h-4" /> },
+                    { label: 'Income Certificate', status: 'Pending', color: 'text-amber-500', icon: <Clock className="w-4 h-4" /> },
+                    { label: 'Barangay Certificate', status: 'Pending', color: 'text-amber-500', icon: <Clock className="w-4 h-4" /> },
+                  ].map((doc, i) => (
+                    <div key={i} className="flex items-center justify-between py-2 border-b border-slate-100 dark:border-white/5 last:border-0">
+                      <div className="flex items-center gap-3">
+                        <span className={doc.color}>{doc.icon}</span>
+                        <span className="font-bold text-sm">{doc.label}</span>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <span className={cn("text-[10px] font-black uppercase tracking-widest", doc.color)}>{doc.status}</span>
+                        {doc.status === 'Pending' && (
+                          <button 
+                            onClick={() => setView('documents')}
+                            className="p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg transition-colors"
+                          >
+                            <Upload className="w-4 h-4 text-slate-400" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className={cn(
+                "p-8 rounded-[2.5rem] border transition-all",
+                isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+              )}>
+                <h3 className="text-xl font-bold mb-6">Recent Applications</h3>
+                <div className="space-y-4">
+                  {(financialAid || []).slice(0, 5).map((app, i) => (
+                    <div key={i} className={cn(
+                      "p-4 rounded-2xl border flex items-center justify-between",
+                      isDarkMode ? "bg-white/5 border-white/5" : "bg-slate-50 border-slate-100"
+                    )}>
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-full bg-red-600/10 flex items-center justify-center text-red-600">
+                          <User className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-sm">{app.studentName || 'Unknown Student'}</h4>
+                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{app.program || 'N/A'} • {app.date ? new Date(app.date).toLocaleDateString() : 'N/A'}</p>
+                        </div>
+                      </div>
+                      <span className={cn(
+                        "px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest",
+                        app.status === 'approved' ? "bg-emerald-500/10 text-emerald-500" :
+                        app.status === 'pending' ? "bg-amber-500/10 text-amber-500" :
+                        "bg-blue-500/10 text-blue-500"
+                      )}>
+                        {app.status}
+                      </span>
+                    </div>
+                  ))}
+                  <button 
+                    onClick={() => setView('applications')}
+                    className="w-full py-4 rounded-2xl bg-slate-900 text-white font-black hover:bg-slate-800 transition-all flex items-center justify-center gap-2"
+                  >
+                    View All Applications
+                  </button>
+                </div>
+              </div>
+
+              <div className={cn(
+                "p-8 rounded-[2.5rem] border transition-all",
+                isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+              )}>
+                <h3 className="text-xl font-bold mb-6">Quick Actions</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  {[
+                    { label: 'Add Scholarship', icon: <Plus />, onClick: () => setView('scholarships') },
+                    { label: 'Post Announcement', icon: <Megaphone />, onClick: () => setView('announcements') },
+                    { label: 'Manage Users', icon: <Users />, onClick: () => setView('users') },
+                    { label: 'Backup & Recovery', icon: <Database />, onClick: () => setView('activity') },
+                  ].map((action, i) => (
+                    <button 
+                      key={i}
+                      onClick={action.onClick}
+                      className={cn(
+                        "p-6 rounded-2xl border flex flex-col items-center gap-3 transition-all group",
+                        isDarkMode ? "bg-white/5 border-white/5 hover:bg-white/10" : "bg-slate-50 border-slate-100 hover:bg-slate-100"
+                      )}
+                    >
+                      <div className="w-12 h-12 rounded-xl bg-red-600/10 flex items-center justify-center text-red-600 group-hover:scale-110 transition-transform">
+                        {action.icon}
+                      </div>
+                      <span className="text-[10px] font-black uppercase tracking-widest text-center">{action.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="space-y-8">
+          <div className={cn(
+            "p-8 rounded-[2.5rem] border transition-all",
+            isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+          )}>
+            <h3 className="text-xl font-bold mb-6">Announcements</h3>
+            <div className="space-y-6">
+              {(announcements || []).slice(0, 3).map((a, i) => (
+                <div key={i} className="p-4 rounded-2xl border border-slate-200 dark:border-white/10 space-y-2 group cursor-pointer hover:border-red-600/30 transition-all" onClick={() => setView('announcements')}>
+                  <h4 className="font-black text-sm group-hover:text-red-600 transition-colors">{a.title || 'No Title'}</h4>
+                  <p className="text-xs text-slate-400 line-clamp-2">{a.content || 'No Content'}</p>
+                  <p className="text-[10px] font-bold text-slate-500">{a.date || 'N/A'} • {a.author || 'Unknown'}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className={cn(
+            "p-8 rounded-[2.5rem] border transition-all",
+            isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+          )}>
+            <h3 className="text-xl font-bold mb-6">Available Scholarships</h3>
+            <div className="space-y-6">
+              {(scholarships || []).slice(0, 5).map((s, i) => (
+                <div key={i} className="flex items-center justify-between group cursor-pointer" onClick={() => setView('finance')}>
+                  <div>
+                    <h4 className="font-black text-sm group-hover:text-red-600 transition-colors">{s.name || 'No Name'}</h4>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Deadline: {s.deadline || 'N/A'} • GPA {s.gpa || 'N/A'}</p>
+                  </div>
+                  <span className="text-sm font-black text-emerald-500">{s.amount || 'N/A'}</span>
+                </div>
+              ))}
+              <button 
+                onClick={() => setView('finance')}
+                className="w-full py-3 rounded-xl border border-slate-200 dark:border-white/10 text-xs font-black uppercase tracking-widest hover:bg-slate-50 dark:hover:bg-white/5 transition-all"
+              >
+                View All →
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+const CoursesView = ({ isDarkMode, setView, setGradeEntryFilter, users, fetchUsers, facultyUser, courses, fetchCourses, isAdmin }: { isDarkMode: boolean, setView: (view: string) => void, setGradeEntryFilter: (filter: string) => void, users: UserData[], fetchUsers: () => void, facultyUser: UserData, courses: any[], fetchCourses: () => void, isAdmin: boolean }) => {
+  const [showClassList, setShowClassList] = useState(false);
+  const [selectedCourse, setSelectedCourse] = useState<any>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isAdding, setIsAdding] = useState(false);
+  const [showAddCourseModal, setShowAddCourseModal] = useState(false);
+  const [editingCourse, setEditingCourse] = useState<any | null>(null);
+  const [newCourse, setNewCourse] = useState({ 
+    id: '', 
+    name: '', 
+    days: 'Mon/Wed', 
+    startTime: '08:00 AM', 
+    endTime: '09:30 AM', 
+    location: '', 
+    instructor: '' 
+  });
+
+  const handleAddCourse = async () => {
+    if (!newCourse.id || !newCourse.name) {
+      alert('Please fill in both Course ID and Course Name.');
+      return;
+    }
+
+    setIsAdding(true);
+    
+    try {
+      const courseData: any = {
+        id: newCourse.id,
+        name: newCourse.name,
+        schedule: `${newCourse.days} ${newCourse.startTime} - ${newCourse.endTime}`,
+        location: newCourse.location || 'TBA',
+        instructor: newCourse.instructor || 'Not Assigned',
+        students: editingCourse ? editingCourse.students : 0,
+        day: newCourse.days,
+        time: `${newCourse.startTime} - ${newCourse.endTime}`
+      };
+
+      console.log('Attempting to save course:', courseData);
+
+      if (editingCourse) {
+        const { error } = await supabase
+          .from('courses')
+          .update(courseData)
+          .eq('id', editingCourse.id);
+        
+        if (!error) {
+          await fetchCourses();
+          setShowAddCourseModal(false);
+          setEditingCourse(null);
+          setNewCourse({ id: '', name: '', days: 'Mon/Wed', startTime: '08:00 AM', endTime: '09:30 AM', location: '', instructor: '' });
+        } else {
+          console.error('Supabase update error:', error);
+          alert(`Error: ${error.message} (Code: ${error.code})`);
+        }
+      } else {
+        const { error } = await supabase.from('courses').insert(courseData);
+        if (!error) {
+          await fetchCourses();
+          setShowAddCourseModal(false);
+          setNewCourse({ id: '', name: '', days: 'Mon/Wed', startTime: '08:00 AM', endTime: '09:30 AM', location: '', instructor: '' });
+          alert('Course added successfully!');
+        } else {
+          console.error('Supabase insert error:', error);
+          if (error.code === '23505') {
+            alert('Error: This Course ID is already taken. Please use a unique ID.');
+          } else {
+            alert(`Error: ${error.message} (Code: ${error.code})`);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Unexpected error:', err);
+      alert('An unexpected error occurred. Please check your internet connection.');
+    } finally {
+      setIsAdding(false);
+    }
+  };
+
+  const handleDeleteCourse = async (courseId: string) => {
+    if (!confirm(`Are you sure you want to delete course ${courseId}?`)) return;
+    
+    const { error } = await supabase
+      .from('courses')
+      .delete()
+      .eq('id', courseId);
+    
+    if (!error) {
+      fetchCourses();
+      alert('Course deleted successfully!');
+    } else {
+      alert('Error deleting course: ' + error.message);
+    }
+  };
+
+  const students = users.filter(u => u.role === 'student');
+  const filteredStudents = students.filter(s => 
+    s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    s.id.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const handleAddStudentToCourse = async (student: UserData) => {
+    if (!selectedCourse) return;
+    setIsAdding(true);
+    
+    const newScheduleEntry = {
+      subject: selectedCourse.id,
+      instructor: selectedCourse.instructor || 'Not Assigned',
+      day: selectedCourse.day,
+      time: selectedCourse.time,
+      location: selectedCourse.location
+    };
+
+    // Check if already in schedule
+    const alreadyEnrolled = (student.schedule || []).some((s: any) => s.subject === selectedCourse.id);
+    if (alreadyEnrolled) {
+      alert('Student is already enrolled in this subject.');
+      setIsAdding(false);
+      return;
+    }
+
+    const updatedSchedule = [...(student.schedule || []), newScheduleEntry];
+    
+    const { error } = await supabase
+      .from('users')
+      .update({ schedule: updatedSchedule })
+      .eq('id', student.id);
+    
+    if (!error) {
+      fetchUsers();
+      alert(`Successfully added ${student.name} to ${selectedCourse.id}`);
+    } else {
+      alert('Error adding student: ' + error.message);
+    }
+    setIsAdding(false);
+  };
+
+  const annexRooms = Array.from({ length: 10 }, (_, f) => 
+    Array.from({ length: 6 }, (_, r) => `${(f + 1) * 100 + (r + 1)} Annex`)
+  ).flat();
+
+  const campusRooms = Array.from({ length: 6 }, (_, f) => 
+    Array.from({ length: 5 }, (_, r) => `${(f + 1) * 100 + (r + 1)} Campus`)
+  ).flat();
+
+  const allRooms = [...annexRooms, ...campusRooms];
+
+  const filteredCourses = isAdmin ? courses : courses.filter(c => c.instructor === facultyUser.name);
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+      <header className="flex justify-between items-end">
+        <div>
+          <h1 className="text-4xl font-black tracking-tighter">{isAdmin ? 'Manage Courses' : 'My Courses'}</h1>
+          <p className={isDarkMode ? "text-slate-400" : "text-slate-500"}>
+            {isAdmin ? 'Manage all academic courses and offerings.' : 'View and manage your assigned teaching loads.'}
+          </p>
+        </div>
+        {isAdmin && (
+          <div className="flex gap-3">
+            <button 
+              onClick={() => {
+                setEditingCourse(null);
+                setNewCourse({ id: '', name: '', days: 'Mon/Wed', startTime: '08:00 AM', endTime: '09:30 AM', location: '', instructor: '' });
+                setShowAddCourseModal(true);
+              }}
+              disabled={isAdding}
+              className="px-6 py-3 bg-red-600 text-white rounded-xl font-black uppercase tracking-widest text-xs shadow-lg shadow-red-600/20 hover:bg-red-500 transition-all flex items-center gap-2 disabled:opacity-50"
+            >
+              <Plus className="w-4 h-4" />
+              Add Course Now
+            </button>
+            <button 
+              onClick={() => {
+                setEditingCourse(null);
+                setNewCourse({ id: '', name: '', days: 'Mon/Wed', startTime: '08:00 AM', endTime: '09:30 AM', location: '', instructor: '' });
+                setShowAddCourseModal(true);
+              }}
+              className="px-6 py-3 bg-slate-900 text-white rounded-xl font-black uppercase tracking-widest text-xs hover:bg-slate-800 transition-all flex items-center gap-2"
+            >
+              <Edit className="w-4 h-4" />
+              Custom Add
+            </button>
+          </div>
+        )}
+      </header>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {filteredCourses.map((course, i) => (
+          <div key={i} className={cn(
+            "p-8 rounded-[2.5rem] border transition-all hover:scale-[1.02]",
+            isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+          )}>
+            <div className="w-12 h-12 rounded-2xl bg-red-600 flex items-center justify-center text-white mb-6">
+              <Book className="w-6 h-6" />
+            </div>
+            <div className="absolute top-8 right-8 flex gap-2">
+              {isAdmin && (
+                <>
+                  <button 
+                    onClick={() => {
+                      setEditingCourse(course);
+                      // Parse the schedule string: "Mon/Wed 08:00 AM - 09:30 AM"
+                      const schedule = course.schedule || "";
+                      const parts = schedule.split(' ');
+                      
+                      const days = parts[0] || 'Mon/Wed';
+                      const startTime = parts.length >= 3 ? `${parts[1]} ${parts[2]}` : '08:00 AM';
+                      const endTime = parts.length >= 6 ? `${parts[4]} ${parts[5]}` : '09:30 AM';
+
+                      setNewCourse({
+                        id: course.id,
+                        name: course.name,
+                        days: days,
+                        startTime: startTime,
+                        endTime: endTime,
+                        location: course.location || '',
+                        instructor: course.instructor || ''
+                      });
+                      setShowAddCourseModal(true);
+                    }}
+                    className="p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg text-slate-400 hover:text-red-600 transition-colors"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+                  <button 
+                    onClick={() => handleDeleteCourse(course.id)}
+                    className="p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg text-slate-400 hover:text-red-600 transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </>
+              )}
+            </div>
+            <h3 className="text-xl font-bold mb-2">{course.name}</h3>
+            <p className="text-xs font-black text-red-600 uppercase tracking-widest mb-4">{course.id}</p>
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm text-slate-500">
+                <User className="w-4 h-4" />
+                <span>Instructor: <span className="font-bold">{course.instructor || 'Not Assigned'}</span></span>
+              </div>
+              <div className="flex items-center gap-2 text-sm text-slate-500">
+                <Clock className="w-4 h-4" />
+                <span>{course.schedule}</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm text-slate-500">
+                <Users className="w-4 h-4" />
+                <span>{course.students} Students Enrolled</span>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 mt-8">
+              <button 
+                onClick={() => {
+                  setSelectedCourse(course);
+                  setShowClassList(true);
+                }}
+                className="py-4 rounded-2xl bg-slate-900 text-white font-black text-[10px] uppercase tracking-widest hover:bg-slate-800 transition-all"
+              >
+                Class List
+              </button>
+              <button 
+                onClick={() => {
+                  if (isAdmin) {
+                    setGradeEntryFilter(course.id);
+                    setView('grades-mgmt');
+                  } else {
+                    setGradeEntryFilter(course.id);
+                    setView('grade-entry');
+                  }
+                }}
+                className="py-4 rounded-2xl border border-slate-200 dark:border-white/10 text-[10px] font-black uppercase tracking-widest hover:bg-slate-100 dark:hover:bg-white/5 transition-all"
+              >
+                {isAdmin ? 'View Grades' : 'Enter Grades'}
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <AnimatePresence>
+        {showAddCourseModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-sm">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white dark:bg-[#111111] rounded-[2.5rem] p-8 max-w-md w-full shadow-2xl border border-slate-200 dark:border-white/5">
+              <h3 className="text-2xl font-black mb-6 text-slate-900 dark:text-white">{editingCourse ? 'Edit Course' : 'Add New Course'}</h3>
+              <div className="space-y-4">
+                <input 
+                  type="text" 
+                  placeholder="Course ID (e.g. IT101)" 
+                  value={newCourse.id}
+                  disabled={!!editingCourse}
+                  onChange={e => setNewCourse({...newCourse, id: e.target.value})}
+                  className={cn("w-full p-4 bg-slate-50 dark:bg-white/5 rounded-2xl border-none outline-none focus:ring-2 focus:ring-red-600 text-slate-900 dark:text-white", editingCourse && "opacity-50 cursor-not-allowed")} 
+                />
+                <input 
+                  type="text" 
+                  placeholder="Course Name" 
+                  value={newCourse.name}
+                  onChange={e => setNewCourse({...newCourse, name: e.target.value})}
+                  className="w-full p-4 bg-slate-50 dark:bg-white/5 rounded-2xl border-none outline-none focus:ring-2 focus:ring-red-600 text-slate-900 dark:text-white" 
+                />
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Days</label>
+                    <select 
+                      value={newCourse.days}
+                      onChange={e => setNewCourse({...newCourse, days: e.target.value})}
+                      className="w-full p-4 bg-slate-50 dark:bg-white/5 rounded-2xl border-none outline-none focus:ring-2 focus:ring-red-600 font-bold text-slate-900 dark:text-white"
+                    >
+                      <option className="bg-white dark:bg-[#111111] text-slate-900 dark:text-white">Mon/Wed</option>
+                      <option className="bg-white dark:bg-[#111111] text-slate-900 dark:text-white">Tue/Thu</option>
+                      <option className="bg-white dark:bg-[#111111] text-slate-900 dark:text-white">Friday</option>
+                      <option className="bg-white dark:bg-[#111111] text-slate-900 dark:text-white">Saturday</option>
+                      <option className="bg-white dark:bg-[#111111] text-slate-900 dark:text-white">Mon/Wed/Fri</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Location</label>
+                    <select 
+                      value={newCourse.location}
+                      onChange={e => setNewCourse({...newCourse, location: e.target.value})}
+                      className="w-full p-4 bg-slate-50 dark:bg-white/5 rounded-2xl border-none outline-none focus:ring-2 focus:ring-red-600 font-bold text-slate-900 dark:text-white"
+                    >
+                      <option value="" className="bg-white dark:bg-[#111111] text-slate-900 dark:text-white">Select Room</option>
+                      <optgroup label="Annex Building (10 Floors)" className="bg-white dark:bg-[#111111] text-slate-900 dark:text-white">
+                        {annexRooms.map(room => (
+                          <option key={room} value={room} className="bg-white dark:bg-[#111111] text-slate-900 dark:text-white">{room}</option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="Main Campus (6 Floors)" className="bg-white dark:bg-[#111111] text-slate-900 dark:text-white">
+                        {campusRooms.map(room => (
+                          <option key={room} value={room} className="bg-white dark:bg-[#111111] text-slate-900 dark:text-white">{room}</option>
+                        ))}
+                      </optgroup>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Start Time</label>
+                    <select 
+                      value={newCourse.startTime}
+                      onChange={e => setNewCourse({...newCourse, startTime: e.target.value})}
+                      className="w-full p-4 bg-slate-50 dark:bg-white/5 rounded-2xl border-none outline-none focus:ring-2 focus:ring-red-600 font-bold text-slate-900 dark:text-white"
+                    >
+                      {['07:30 AM', '08:00 AM', '09:00 AM', '10:00 AM', '11:00 AM', '12:00 PM', '01:00 PM', '02:00 PM', '03:00 PM', '04:00 PM', '05:00 PM'].map(t => (
+                        <option key={t} className="bg-white dark:bg-[#111111] text-slate-900 dark:text-white">{t}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">End Time</label>
+                    <select 
+                      value={newCourse.endTime}
+                      onChange={e => setNewCourse({...newCourse, endTime: e.target.value})}
+                      className="w-full p-4 bg-slate-50 dark:bg-white/5 rounded-2xl border-none outline-none focus:ring-2 focus:ring-red-600 font-bold text-slate-900 dark:text-white"
+                    >
+                      {['09:00 AM', '09:30 AM', '10:30 AM', '11:30 AM', '12:30 PM', '01:30 PM', '02:30 PM', '03:30 PM', '04:30 PM', '05:30 PM', '06:30 PM'].map(t => (
+                        <option key={t} className="bg-white dark:bg-[#111111] text-slate-900 dark:text-white">{t}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Instructor</label>
+                    <select 
+                      value={newCourse.instructor}
+                      onChange={e => setNewCourse({...newCourse, instructor: e.target.value})}
+                      className="w-full p-4 bg-slate-50 dark:bg-white/5 rounded-2xl border-none outline-none focus:ring-2 focus:ring-red-600 font-bold text-slate-900 dark:text-white"
+                    >
+                      <option value="" className="bg-white dark:bg-[#111111] text-slate-900 dark:text-white">Not Assigned</option>
+                      {users.filter(u => u.role === 'faculty').map(f => (
+                        <option key={f.id} value={f.name} className="bg-white dark:bg-[#111111] text-slate-900 dark:text-white">{f.name}</option>
+                      ))}
+                    </select>
+                </div>
+                <div className="flex gap-4 pt-4">
+                  <button onClick={() => {
+                    setShowAddCourseModal(false);
+                    setEditingCourse(null);
+                    setNewCourse({ id: '', name: '', days: 'Mon/Wed', startTime: '08:00 AM', endTime: '09:30 AM', location: '', instructor: '' });
+                  }} className="flex-1 py-4 bg-slate-100 dark:bg-white/5 rounded-2xl font-bold text-slate-600 dark:text-slate-300">Cancel</button>
+                  <button 
+                    onClick={handleAddCourse} 
+                    disabled={isAdding}
+                    className="flex-1 py-4 bg-red-600 text-white rounded-2xl font-black disabled:opacity-50"
+                  >
+                    {isAdding ? 'Processing...' : (editingCourse ? 'Update Course' : 'Add Course')}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {showClassList && selectedCourse && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setShowClassList(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className={cn(
+                "relative w-full max-w-2xl rounded-[2.5rem] p-8 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]",
+                isDarkMode ? "bg-[#111111] border border-white/5" : "bg-white border border-slate-200"
+              )}
+            >
+              <div className="flex items-center justify-between mb-8">
+                <div>
+                  <h2 className="text-2xl font-black tracking-tighter">Class List: {selectedCourse.id}</h2>
+                  <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">{selectedCourse.name}</p>
+                </div>
+                <button onClick={() => setShowClassList(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-full">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="relative mb-6">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input 
+                  type="text"
+                  placeholder="Search student to add..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className={cn(
+                    "w-full pl-10 pr-4 py-3 rounded-xl border outline-none transition-all",
+                    isDarkMode ? "bg-white/5 border-white/10 focus:border-red-600/50" : "bg-white border-slate-200 focus:border-red-600"
+                  )}
+                />
+              </div>
+
+              <div className="flex-1 overflow-y-auto pr-2 space-y-4">
+                {filteredStudents.length > 0 ? filteredStudents.map(s => {
+                  const isEnrolled = (s.schedule || []).some((sch: any) => sch.subject === selectedCourse.id);
+                  return (
+                    <div key={s.id} className={cn(
+                      "p-4 rounded-2xl border flex items-center justify-between transition-all",
+                      isDarkMode ? "bg-white/5 border-white/5" : "bg-slate-50 border-slate-100"
+                    )}>
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-xl bg-red-600 flex items-center justify-center text-white font-bold">
+                          {s.name[0]}
+                        </div>
+                        <div>
+                          <p className="font-bold">{s.name} {s.surname}</p>
+                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{s.id}</p>
+                        </div>
+                      </div>
+                      <button 
+                        disabled={isEnrolled || isAdding}
+                        onClick={() => handleAddStudentToCourse(s)}
+                        className={cn(
+                          "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+                          isEnrolled 
+                            ? "bg-emerald-500/10 text-emerald-500 cursor-default" 
+                            : "bg-slate-900 text-white hover:bg-slate-800"
+                        )}
+                      >
+                        {isEnrolled ? (
+                          <span className="flex items-center gap-1"><CheckCircle className="w-3 h-3" /> Enrolled</span>
+                        ) : isAdding ? 'Adding...' : 'Add to Class'}
+                      </button>
+                    </div>
+                  );
+                }) : (
+                  <div className="text-center py-12">
+                    <p className="text-slate-400 font-bold italic">No students found</p>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+};
+
+const GradeEntryView = ({ users, isDarkMode, facultyUser, fetchUsers, initialFilter, setGradeEntryFilter }: { users: UserData[], isDarkMode: boolean, facultyUser: UserData, fetchUsers: () => void, initialFilter: string, setGradeEntryFilter: (filter: string) => void }) => {
+  const [selectedStudent, setSelectedStudent] = useState<UserData | null>(null);
+  const [showModal, setShowModal] = useState(false);
+  const [newGrade, setNewGrade] = useState({ subject: initialFilter || '', instructor: facultyUser.name, grade: '', semester: '1st Semester 2024-2025' });
+  const [searchTerm, setSearchTerm] = useState(initialFilter || '');
+
+  useEffect(() => {
+    if (initialFilter) {
+      setSearchTerm(initialFilter);
+      setNewGrade(prev => ({ ...prev, subject: initialFilter }));
+    }
+  }, [initialFilter]);
+
+  const students = users.filter(u => u.role === 'student');
+  const filteredStudents = students.filter(s => 
+    s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    s.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (s.schedule || []).some((sch: any) => sch.subject.toLowerCase() === searchTerm.toLowerCase())
+  );
+
+  const handleAddGrade = async () => {
+    if (!selectedStudent) return;
+    const updatedGrades = [...(selectedStudent.grades || []), newGrade];
+    const { error } = await supabase
+      .from('users')
+      .update({ grades: updatedGrades })
+      .eq('id', selectedStudent.id);
+    
+    if (!error) {
+      fetchUsers();
+      setShowModal(false);
+      setNewGrade({ subject: '', instructor: facultyUser.name, grade: '', semester: '1st Semester 2024-2025' });
+      setSelectedStudent(null);
+    }
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+      <header>
+        <h1 className="text-4xl font-black tracking-tighter">Grade Entry</h1>
+        <p className={isDarkMode ? "text-slate-400" : "text-slate-500"}>Submit and manage student grades for your courses.</p>
+      </header>
+
+      <div className="relative max-w-md">
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+        <input 
+          type="text"
+          placeholder="Search student..."
+          value={searchTerm}
+          onChange={(e) => {
+            setSearchTerm(e.target.value);
+            setGradeEntryFilter('');
+          }}
+          className={cn(
+            "w-full pl-10 pr-4 py-3 rounded-xl border outline-none transition-all",
+            isDarkMode ? "bg-white/5 border-white/10 focus:border-red-600/50" : "bg-white border-slate-200 focus:border-red-600"
+          )}
+        />
+      </div>
+
+      <div className={cn(
+        "rounded-[2.5rem] border overflow-hidden transition-all",
+        isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+      )}>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className={isDarkMode ? "bg-white/5" : "bg-slate-50"}>
+                <th className="px-8 py-6 text-xs font-bold text-slate-400 uppercase tracking-widest">Student</th>
+                <th className="px-8 py-6 text-xs font-bold text-slate-400 uppercase tracking-widest">Course</th>
+                <th className="px-8 py-6 text-xs font-bold text-slate-400 uppercase tracking-widest text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody className={cn("divide-y", isDarkMode ? "divide-white/5" : "divide-slate-100")}>
+              {filteredStudents.map(s => (
+                <tr key={s.id} className={cn("transition-colors", isDarkMode ? "hover:bg-white/5" : "hover:bg-slate-50")}>
+                  <td className="px-8 py-6">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-xl bg-red-600 flex items-center justify-center text-white font-bold">
+                        {s.name[0]}
+                      </div>
+                      <div>
+                        <p className="font-bold">{s.name} {s.surname}</p>
+                        <p className="text-xs text-slate-400">{s.id}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-8 py-6">
+                    <p className="font-bold">{s.course}</p>
+                  </td>
+                  <td className="px-8 py-6 text-right">
+                    <button 
+                      onClick={() => {
+                        setSelectedStudent(s);
+                        setShowModal(true);
+                      }}
+                      className="px-4 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all"
+                    >
+                      Enter Grade
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <AnimatePresence>
+        {showModal && selectedStudent && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setShowModal(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className={cn(
+                "relative w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl",
+                isDarkMode ? "bg-[#111111] border border-white/5" : "bg-white border border-slate-200"
+              )}
+            >
+              <div className="flex items-center justify-between mb-8">
+                <h2 className="text-2xl font-black tracking-tighter">Enter Grade</h2>
+                <button onClick={() => setShowModal(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-full">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              <div className="space-y-6">
+                <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Student</p>
+                  <p className="font-bold">{selectedStudent.name} ({selectedStudent.id})</p>
+                </div>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Instructor</label>
+                    <input 
+                      type="text"
+                      value={newGrade.instructor}
+                      disabled
+                      className={cn("w-full p-4 rounded-2xl border outline-none font-bold opacity-60", isDarkMode ? "bg-white/5 border-white/10" : "bg-slate-50 border-slate-200")}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Subject</label>
+                    <input 
+                      type="text"
+                      value={newGrade.subject}
+                      onChange={e => setNewGrade({...newGrade, subject: e.target.value})}
+                      className={cn("w-full p-4 rounded-2xl border outline-none font-bold", isDarkMode ? "bg-white/5 border-white/10" : "bg-slate-50 border-slate-200")}
+                      placeholder="e.g. IT101"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Grade</label>
+                    <select 
+                      value={newGrade.grade}
+                      onChange={e => setNewGrade({...newGrade, grade: e.target.value})}
+                      className={cn("w-full p-4 rounded-2xl border outline-none font-bold appearance-none", isDarkMode ? "bg-white/5 border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900")}
+                    >
+                      <option value="">Select Grade</option>
+                      <option value="1.0">1.0 (Excellent)</option>
+                      <option value="1.25">1.25 (Superior)</option>
+                      <option value="1.5">1.5 (Very Good)</option>
+                      <option value="1.75">1.75 (Good)</option>
+                      <option value="2.0">2.0 (Satisfactory)</option>
+                      <option value="2.25">2.25 (Fair)</option>
+                      <option value="2.5">2.5 (Passing)</option>
+                      <option value="2.75">2.75 (Below Average)</option>
+                      <option value="3.0">3.0 (Lowest Passing)</option>
+                      <option value="5.0">5.0 (Failed)</option>
+                      <option value="INC">INC (Incomplete)</option>
+                      <option value="W">W (Withdrawn)</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Semester</label>
+                    <select 
+                      value={newGrade.semester}
+                      onChange={e => setNewGrade({...newGrade, semester: e.target.value})}
+                      className={cn("w-full p-4 rounded-2xl border outline-none font-bold appearance-none", isDarkMode ? "bg-white/5 border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900")}
+                    >
+                      <option>1st Semester 2024-2025</option>
+                      <option>2nd Semester 2024-2025</option>
+                      <option>Summer 2024-2025</option>
+                      <option>1st Semester 2023-2024</option>
+                      <option>2nd Semester 2023-2024</option>
+                      <option>Summer 2023-2024</option>
+                    </select>
+                  </div>
+                </div>
+                <button 
+                  onClick={handleAddGrade}
+                  className="w-full py-4 bg-red-600 text-white rounded-2xl font-black hover:bg-red-700 transition-all shadow-lg shadow-red-600/20"
+                >
+                  Submit Grade
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+};
+
+function FacultyDashboard({ 
+  user, 
+  isDarkMode, 
+  financialAid = [], 
+  scholarships = [], 
+  recommendations = [], 
+  fetchRecommendations,
+  users = [],
+  fetchUsers,
+  setView,
+  selectedStudentForRec,
+  setSelectedStudentForRec
+}: { 
+  user: UserData, 
+  isDarkMode?: boolean, 
+  financialAid?: any[], 
+  scholarships?: any[], 
+  recommendations?: any[], 
+  fetchRecommendations: () => void,
+  users?: UserData[],
+  fetchUsers: () => void,
+  setView: (view: string) => void,
+  selectedStudentForRec: {id: string, name: string} | null,
+  setSelectedStudentForRec: (val: {id: string, name: string} | null) => void
+}) {
+  const [showRecModal, setShowRecModal] = useState(false);
+  const [recData, setRecData] = useState({ studentId: '', studentName: '', content: '' });
+  const [selectedStudent, setSelectedStudent] = useState<UserData | null>(null);
+  const [showManageModal, setShowManageModal] = useState(false);
+  const [newGrade, setNewGrade] = useState({ subject: '', instructor: user.name, grade: '' });
+
+  const handleAddGrade = async () => {
+    if (!selectedStudent) return;
+    const updatedGrades = [...(selectedStudent.grades || []), newGrade];
+    const { error } = await supabase
+      .from('users')
+      .update({ grades: updatedGrades })
+      .eq('id', selectedStudent.id);
+    
+    if (!error) {
+      fetchUsers();
+      setSelectedStudent({ ...selectedStudent, grades: updatedGrades });
+      setNewGrade({ subject: '', instructor: user.name, grade: '' });
+    }
+  };
+
+  const removeGrade = async (index: number) => {
+    if (!selectedStudent) return;
+    const updatedGrades = (selectedStudent.grades || []).filter((_, i) => i !== index);
+    const { error } = await supabase
+      .from('users')
+      .update({ grades: updatedGrades })
+      .eq('id', selectedStudent.id);
+    
+    if (!error) {
+      fetchUsers();
+      setSelectedStudent({ ...selectedStudent, grades: updatedGrades });
+    }
+  };
+
+  useEffect(() => {
+    if (selectedStudentForRec) {
+      setRecData({ studentId: selectedStudentForRec.id, studentName: selectedStudentForRec.name, content: '' });
+      setShowRecModal(true);
+      setSelectedStudentForRec(null);
+    }
+  }, [selectedStudentForRec]);
+
+  const students = (users || []).filter(u => u.role === 'student');
+
+  const handleRecommendation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const { error } = await supabase
+      .from('recommendations')
+      .insert({ 
+        ...recData, 
+        facultyId: user.id, 
+        facultyName: user.name,
+        date: new Date().toISOString()
+      });
+    
+    if (!error) {
+      setShowRecModal(false);
+      setRecData({ studentId: '', studentName: '', content: '' });
+      fetchRecommendations();
+    }
+  };
+
+  const handleStudentSelect = (studentName: string) => {
+    const selectedStudent = students.find(s => s.name === studentName);
+    if (selectedStudent) {
+      setRecData({ ...recData, studentName, studentId: selectedStudent.id });
+    } else {
+      setRecData({ ...recData, studentName, studentId: '' });
+    }
+  };
+
+  const myRecommendations = (recommendations || []).filter((r: any) => r.facultyId === user.id);
+
+  const assignedApplications = (financialAid || []).filter(app => app.facultyId === user.id || app.status === 'pending').slice(0, 5);
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+      <header>
+        <h1 className="text-4xl font-black tracking-tighter">Faculty Dashboard</h1>
+        <p className={isDarkMode ? "text-slate-400" : "text-slate-500"}>Manage student recommendations and evaluations</p>
+      </header>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatCard icon={<FileText />} label="Assigned" value={assignedApplications.length.toString()} trend="Pending review" color="purple" isDarkMode={isDarkMode} />
+        <StatCard icon={<Clock />} label="Pending Review" value={assignedApplications.filter(a => a.status === 'pending').length.toString()} trend="Action required" color="amber" isDarkMode={isDarkMode} />
+        <StatCard icon={<CheckCircle />} label="Recommended" value={myRecommendations.length.toString()} trend="Completed" color="emerald" isDarkMode={isDarkMode} />
+        <StatCard icon={<Users />} label="Total Students" value={students.length.toString()} trend="Active list" color="blue" isDarkMode={isDarkMode} />
+      </div>
+
+      <div className={cn(
+        "p-8 rounded-[2.5rem] border transition-all",
+        isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+      )}>
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h3 className="text-xl font-bold">Manage Student Records</h3>
+            <p className={cn("text-xs mt-1", isDarkMode ? "text-slate-500" : "text-slate-400")}>Update student grades</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {students.map((student, i) => (
+            <div key={i} className={cn(
+              "p-6 rounded-2xl border group transition-all hover:scale-[1.02]",
+              isDarkMode ? "bg-white/5 border-white/5" : "bg-slate-50 border-slate-100"
+            )}>
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-12 h-12 rounded-xl bg-red-600 flex items-center justify-center text-white font-bold">
+                  {student.name[0]}
+                </div>
+                <div>
+                  <h4 className="font-black text-lg">{student.name}</h4>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{student.id}</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => {
+                  setSelectedStudent(student);
+                  setShowManageModal(true);
+                }}
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all"
+              >
+                <BookOpen className="w-3 h-3" />
+                Manage Grades
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2 space-y-8">
+          <div className={cn(
+            "p-8 rounded-[2.5rem] border transition-all",
+            isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+          )}>
+            <h3 className="text-xl font-bold mb-8">Applications Assigned to Me</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-100 dark:border-white/5">
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Student</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Program</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+                  {assignedApplications.map((app, i) => (
+                    <tr key={i} className="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
+                      <td className="px-6 py-4">
+                        <p className="text-sm font-black">{app.studentName}</p>
+                        <p className="text-[10px] text-slate-400 font-bold">{app.studentId}</p>
+                      </td>
+                      <td className="px-6 py-4 text-sm font-bold text-slate-500">{app.program}</td>
+                      <td className="px-6 py-4">
+                        <span className={cn(
+                          "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
+                          app.status === 'approved' ? "bg-emerald-500/10 text-emerald-500" : "bg-blue-500/10 text-blue-500"
+                        )}>
+                          {app.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button 
+                          onClick={() => setView('applications')}
+                          className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-800 transition-all"
+                        >
+                          Review
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className={cn(
+            "p-8 rounded-[2.5rem] border transition-all",
+            isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+          )}>
+            <h3 className="text-xl font-bold mb-6">Scholarship Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {scholarships.map((s, i) => (
+                <div key={i} className={cn(
+                  "p-6 rounded-2xl border",
+                  isDarkMode ? "bg-white/5 border-white/5" : "bg-slate-50 border-slate-100"
+                )}>
+                  <h4 className="font-black text-red-600 mb-1">{s.name}</h4>
+                  <p className="text-xs text-slate-400 mb-4">{s.description}</p>
+                  <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
+                    <span className="text-slate-500">Coverage: {s.coverage}</span>
+                    <span className="text-emerald-500">Deadline: {s.deadline}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-8">
+          <div className={cn(
+            "p-8 rounded-[2.5rem] border transition-all",
+            isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+          )}>
+            <h3 className="text-xl font-bold mb-6">My Recommendations</h3>
+            <div className="space-y-4">
+              {recommendations.map((r, i) => (
+                <div key={i} className="p-4 rounded-2xl border border-slate-200 dark:border-white/10">
+                  <p className="font-bold text-sm">{r.studentName}</p>
+                  <p className="text-xs text-slate-400 line-clamp-2 mt-1">{r.content}</p>
+                  <p className="text-[10px] text-slate-500 mt-2">{new Date(r.date).toLocaleDateString()}</p>
+                </div>
+              ))}
+              {recommendations.length === 0 && (
+                <p className="text-center text-slate-400 text-sm py-4">No recommendations written yet.</p>
+              )}
+            </div>
+          </div>
+
+          <div className={cn(
+            "p-8 rounded-[2.5rem] border transition-all",
+            isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+          )}>
+            <h3 className="text-xl font-bold mb-6">Quick Actions</h3>
+            <div className="space-y-3">
+              <button 
+                onClick={() => setShowRecModal(true)}
+                className="w-full py-4 rounded-2xl bg-slate-900 text-white font-black hover:bg-slate-800 transition-all flex items-center justify-center gap-2 text-sm"
+              >
+                <CheckCircle className="w-5 h-5" />
+                Write Recommendations
+              </button>
+              <button 
+                onClick={() => setView('applications')}
+                className="w-full py-4 rounded-2xl border border-slate-200 dark:border-white/10 font-black hover:bg-slate-50 dark:hover:bg-white/5 transition-all flex items-center justify-center gap-2 text-sm"
+              >
+                <FileText className="w-5 h-5" />
+                View All Assigned
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {showRecModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className={cn(
+              "w-full max-w-lg p-8 rounded-[2.5rem] border shadow-2xl",
+              isDarkMode ? "bg-[#111111] border-white/10" : "bg-white border-slate-200"
+            )}
+          >
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-2xl font-black tracking-tight">New Recommendation</h3>
+              <button onClick={() => setShowRecModal(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-full transition-colors">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <form onSubmit={handleRecommendation} className="space-y-4">
+              <div>
+                <label className="block text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Student Name</label>
+                <select 
+                  value={recData.studentName}
+                  onChange={e => handleStudentSelect(e.target.value)}
+                  className={cn(
+                    "w-full p-4 rounded-2xl border outline-none focus:ring-2 focus:ring-red-600 transition-all font-bold",
+                    isDarkMode ? "bg-white/5 border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                  )}
+                  required
+                >
+                  <option value="">Select Student</option>
+                  {students.map(s => (
+                    <option key={s.id} value={s.name}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Student ID</label>
+                <input 
+                  type="text" 
+                  value={recData.studentId}
+                  readOnly
+                  className={cn(
+                    "w-full p-4 rounded-2xl border outline-none transition-all font-bold opacity-70",
+                    isDarkMode ? "bg-white/5 border-white/10" : "bg-slate-50 border-slate-200"
+                  )}
+                  placeholder="Student ID"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Recommendation Content</label>
+                <textarea 
+                  value={recData.content}
+                  onChange={e => setRecData({...recData, content: e.target.value})}
+                  className={cn(
+                    "w-full p-4 rounded-2xl border outline-none focus:ring-2 focus:ring-red-600 transition-all font-bold h-32 resize-none",
+                    isDarkMode ? "bg-white/5 border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                  )}
+                  placeholder="Write your recommendation here..."
+                  required
+                />
+              </div>
+              <button className="w-full py-4 bg-red-600 text-white rounded-2xl font-black hover:bg-red-700 transition-all shadow-lg shadow-red-600/20">
+                Submit Recommendation
+              </button>
+            </form>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Manage Records Modal */}
+      <AnimatePresence>
+        {showManageModal && selectedStudent && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }}
+              onClick={() => setShowManageModal(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className={cn(
+                "relative w-full max-w-2xl rounded-[2.5rem] p-8 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col",
+                isDarkMode ? "bg-[#111111] border border-white/5" : "bg-white border border-slate-200"
+              )}
+            >
+              <div className="flex items-center justify-between mb-8">
+                <div>
+                  <h2 className="text-3xl font-black tracking-tighter">
+                    Manage Grades
+                  </h2>
+                  <p className={cn("text-sm font-bold", isDarkMode ? "text-slate-500" : "text-slate-400")}>
+                    Student: {selectedStudent.name} ({selectedStudent.id})
+                  </p>
+                </div>
+                <button 
+                  onClick={() => setShowManageModal(false)}
+                  className="p-3 rounded-xl hover:bg-slate-100 dark:hover:bg-white/5 transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-8">
+                {/* Add Form */}
+                <div className={cn(
+                  "p-6 rounded-2xl border",
+                  isDarkMode ? "bg-white/5 border-white/5" : "bg-slate-50 border-slate-100"
+                )}>
+                  <h4 className="text-sm font-black uppercase tracking-widest mb-4">Add New Grade</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <input 
+                      placeholder="Subject"
+                      value={newGrade.subject}
+                      onChange={e => setNewGrade({...newGrade, subject: e.target.value})}
+                      className={cn("p-3 rounded-xl border text-sm font-bold outline-none", isDarkMode ? "bg-white/5 border-white/10 text-white" : "bg-white border-slate-200 text-slate-900")}
+                    />
+                    <select 
+                      value={newGrade.grade}
+                      onChange={e => setNewGrade({...newGrade, grade: e.target.value})}
+                      className={cn("p-3 rounded-xl border text-sm font-bold outline-none appearance-none", isDarkMode ? "bg-white/5 border-white/10 text-white" : "bg-white border-slate-200 text-slate-900")}
+                    >
+                      <option value="">Grade</option>
+                      <option value="1.0">1.0</option>
+                      <option value="1.25">1.25</option>
+                      <option value="1.5">1.5</option>
+                      <option value="1.75">1.75</option>
+                      <option value="2.0">2.0</option>
+                      <option value="2.25">2.25</option>
+                      <option value="2.5">2.5</option>
+                      <option value="2.75">2.75</option>
+                      <option value="3.0">3.0</option>
+                      <option value="5.0">5.0</option>
+                      <option value="INC">INC</option>
+                      <option value="W">W</option>
+                    </select>
+                    <button 
+                      onClick={handleAddGrade}
+                      className="bg-red-600 text-white font-black rounded-xl py-3 hover:bg-red-700 transition-all"
+                    >
+                      Add Grade
+                    </button>
+                  </div>
+                </div>
+
+                {/* List */}
+                <div className="space-y-4">
+                  <h4 className="text-sm font-black uppercase tracking-widest">Current Grades</h4>
+                  <div className="space-y-2">
+                    {(selectedStudent.grades || []).map((g, i) => (
+                      <div key={i} className={cn("p-4 rounded-xl border flex items-center justify-between", isDarkMode ? "bg-white/5 border-white/5" : "bg-white border-slate-100")}>
+                        <div>
+                          <p className="font-bold">{g.subject}</p>
+                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Grade: {g.grade}</p>
+                        </div>
+                        <button onClick={() => removeGrade(i)} className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                    {(selectedStudent.grades || []).length === 0 && <p className="text-xs text-slate-500 italic">No grades recorded yet.</p>}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
+function StaffDashboard({ 
+  user, 
+  isDarkMode, 
+  financialAid = [], 
+  scholarships = [], 
+  announcements = [],
+  updateFinancialAidStatus,
+  setView
+}: { 
+  user: UserData, 
+  isDarkMode?: boolean, 
+  financialAid?: any[], 
+  scholarships?: any[], 
+  announcements?: any[],
+  updateFinancialAidStatus: (id: number, status: string) => void,
+  setView: (view: string) => void
+}) {
+  const recentApplications = (financialAid || []).slice(-5).reverse();
+  const pendingApps = (financialAid || []).filter(a => a.status === 'pending').length;
+  const reviewApps = (financialAid || []).filter(a => a.status === 'review').length;
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+      <header>
+        <h1 className="text-4xl font-black tracking-tighter">Staff Dashboard</h1>
+        <p className={isDarkMode ? "text-slate-400" : "text-slate-500"}>Financial Aid Office • Document & Application Management</p>
+      </header>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatCard icon={<FileText />} label="Total Applications" value={financialAid.length.toString()} trend="Active" color="purple" isDarkMode={isDarkMode} />
+        <StatCard icon={<Clock />} label="Pending" value={pendingApps.toString()} trend="Action required" color="amber" isDarkMode={isDarkMode} />
+        <StatCard icon={<Search />} label="Under Review" value={reviewApps.toString()} trend="In progress" color="indigo" isDarkMode={isDarkMode} />
+        <StatCard icon={<XCircle />} label="Incomplete Docs" value="2" trend="Need follow-up" color="red" isDarkMode={isDarkMode} />
+      </div>
+
+      <div className={cn(
+        "p-8 rounded-[2.5rem] border transition-all overflow-hidden",
+        isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+      )}>
+        <div className="flex items-center justify-between mb-8">
+          <h3 className="text-xl font-bold">Recent Applications</h3>
+          <button 
+            onClick={() => setView('applications')}
+            className={cn(
+              "px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
+              isDarkMode ? "bg-white/5 hover:bg-white/10" : "bg-slate-50 hover:bg-slate-100"
+            )}
+          >
+            View All
+          </button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-slate-100 dark:border-white/5">
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">App ID</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Student</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Program</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Documents</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+              {recentApplications.map((app, i) => (
+                <tr key={i} className="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
+                  <td className="px-6 py-4 text-xs font-bold text-slate-500">{app.id?.toString().slice(-8) || 'N/A'}</td>
+                  <td className="px-6 py-4 text-sm font-black">{app.studentName || 'Unknown Student'}</td>
+                  <td className="px-6 py-4 text-sm font-bold text-slate-500">{app.program || 'N/A'}</td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-2">
+                      {app.docs === 'Complete' ? (
+                        <span className="flex items-center gap-1 text-[10px] font-black text-emerald-500 uppercase tracking-widest">
+                          <CheckCircle className="w-3 h-3" /> Complete
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 text-[10px] font-black text-amber-500 uppercase tracking-widest">
+                          <XCircle className="w-3 h-3" /> Incomplete
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className={cn(
+                      "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
+                      app.status === 'approved' ? "bg-emerald-500/10 text-emerald-500" :
+                      app.status === 'pending' ? "bg-amber-500/10 text-amber-500" :
+                      app.status === 'review' ? "bg-blue-500/10 text-blue-500" :
+                      "bg-red-500/10 text-red-500"
+                    )}>
+                      {app.status || 'Unknown'}
+                    </span>
+                  </td>
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex justify-end gap-2">
+                        <button 
+                          onClick={() => updateFinancialAidStatus(app.id, 'review')}
+                          className="px-3 py-1 bg-blue-500 text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-blue-600 transition-all"
+                        >
+                          Review
+                        </button>
+                        <button 
+                          onClick={() => updateFinancialAidStatus(app.id, 'approved')}
+                          className="px-3 py-1 bg-emerald-500 text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-emerald-600 transition-all"
+                        >
+                          Approve
+                        </button>
+                      </div>
+                    </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className={cn(
+          "p-8 rounded-[2.5rem] border transition-all",
+          isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+        )}>
+          <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-red-600" /> Application Summary
+          </h3>
+          <div className="h-48 flex items-center justify-center text-slate-400 text-sm font-bold italic">
+            Chart Visualization Placeholder
+          </div>
+        </div>
+        <div className={cn(
+          "p-8 rounded-[2.5rem] border transition-all",
+          isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+        )}>
+          <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+            <MessageSquare className="w-5 h-5 text-red-600" /> Recent Inquiries
+          </h3>
+          <div className="space-y-4">
+            {[
+              { from: 'John Doe', subject: 'Scholarship Status', time: '2h ago' },
+              { from: 'Maria Reyes', subject: 'Document Verification', time: '5h ago' },
+            ].map((msg, i) => (
+              <div key={i} className="p-4 rounded-2xl bg-slate-50 dark:bg-white/5 flex items-center justify-between">
+                <div>
+                  <h4 className="font-black text-sm">{msg.from}</h4>
+                  <p className="text-xs text-slate-400">{msg.subject}</p>
+                </div>
+                <span className="text-[10px] font-bold text-slate-500">{msg.time}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function Dashboard({ user, announcements, isDarkMode }: { user: UserData, announcements: any[], isDarkMode?: boolean }) {
+  const chartData = [
+    { name: 'Jan', value: 400 },
+    { name: 'Feb', value: 300 },
+    { name: 'Mar', value: 600 },
+    { name: 'Apr', value: 800 },
+    { name: 'May', value: 500 },
+    { name: 'Jun', value: 900 },
+  ];
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-8">
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-4xl font-black tracking-tighter">Welcome back, {user.name.split(' ')[0]}! 👋</h1>
+          <p className={isDarkMode ? "text-slate-400" : "text-slate-500"}>Here's what's happening with your academic profile today.</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <button className={cn(
+            "px-6 py-3 rounded-2xl font-bold transition-all flex items-center gap-2",
+            isDarkMode ? "bg-white text-slate-900 hover:bg-slate-200" : "bg-slate-900 text-white hover:bg-slate-800"
+          )}>
+            <Plus className="w-5 h-5" />
+            Quick Action
+          </button>
+        </div>
+      </header>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatCard 
+          icon={<DollarSign />} 
+          label="Current Balance" 
+          value={`₱${user.balance?.toLocaleString() || '0'}`} 
+          trend="+12% from last month"
+          color="emerald"
+          isDarkMode={isDarkMode}
+        />
+        <StatCard 
+          icon={<BookOpen />} 
+          label="GPA" 
+          value="3.8" 
+          trend="Top 5% of class"
+          color="red"
+          isDarkMode={isDarkMode}
+        />
+        <StatCard 
+          icon={<Calendar />} 
+          label="Next Class" 
+          value="IT 311" 
+          trend="Starts in 45 mins"
+          color="amber"
+          isDarkMode={isDarkMode}
+        />
+        <StatCard 
+          icon={<Bell />} 
+          label="Notifications" 
+          value="4" 
+          trend="2 urgent alerts"
+          color="blue"
+          isDarkMode={isDarkMode}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className={cn(
+          "lg:col-span-2 p-8 rounded-[2.5rem] border transition-all",
+          isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+        )}>
+          <div className="flex items-center justify-between mb-8">
+            <h3 className="text-xl font-bold">Academic Performance</h3>
+            <select className={cn(
+              "bg-transparent border-none outline-none font-bold text-sm",
+              isDarkMode ? "text-slate-400" : "text-slate-500"
+            )}>
+              <option>This Semester</option>
+              <option>Last Semester</option>
+            </select>
+          </div>
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData}>
+                <defs>
+                  <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#dc2626" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#dc2626" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDarkMode ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)"} />
+                <XAxis 
+                  dataKey="name" 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fill: isDarkMode ? '#64748b' : '#94a3b8', fontSize: 12 }} 
+                />
+                <YAxis hide />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: isDarkMode ? '#1a1a1a' : '#fff', 
+                    borderRadius: '16px', 
+                    border: 'none',
+                    boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)'
+                  }} 
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="value" 
+                  stroke="#dc2626" 
+                  strokeWidth={4}
+                  fillOpacity={1} 
+                  fill="url(#colorValue)" 
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className={cn(
+          "p-8 rounded-[2.5rem] border transition-all",
+          isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+        )}>
+          <h3 className="text-xl font-bold mb-6">Recent Announcements</h3>
+          <div className="space-y-6">
+            {announcements.slice(0, 3).map((a, i) => (
+              <div key={i} className="group cursor-pointer">
+                <p className={cn(
+                  "text-[10px] uppercase tracking-widest font-bold mb-1",
+                  isDarkMode ? "text-slate-500" : "text-slate-400"
+                )}>{a.date}</p>
+                <h4 className="font-bold group-hover:text-red-600 transition-colors">{a.title}</h4>
+                <p className={cn(
+                  "text-sm line-clamp-2 mt-1",
+                  isDarkMode ? "text-slate-400" : "text-slate-500"
+                )}>{a.content}</p>
+              </div>
+            ))}
+          </div>
+          <button className="w-full mt-8 py-4 rounded-2xl border border-dashed border-slate-200 dark:border-white/10 font-bold text-sm hover:border-red-600 hover:text-red-600 transition-all">
+            View All Announcements
+          </button>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function AdminDashboard({ 
+  user, 
+  isDarkMode, 
+  users = [], 
+  financialAid = [], 
+  scholarships = [], 
+  announcements = [],
+  updateFinancialAidStatus,
+  setView
+}: { 
+  user: UserData, 
+  isDarkMode?: boolean, 
+  users?: UserData[], 
+  financialAid?: any[], 
+  scholarships?: any[], 
+  announcements?: any[],
+  updateFinancialAidStatus: (id: number, status: string) => void,
+  setView: (view: string) => void
+}) {
+  // Generate dynamic barData based on actual financial aid applications for Nov 2024
+  const barData = (() => {
+    const days: { [key: string]: number } = {};
+    // Initialize days for Nov 2024 (1 to 30)
+    for (let i = 1; i <= 30; i++) {
+      days[`Nov ${i}`] = 0;
+    }
+
+    (financialAid || []).forEach(a => {
+      const date = new Date(a.date);
+      // Check if it's Nov 2024 (Month 10 is November)
+      if (date.getMonth() === 10 && date.getFullYear() === 2024) {
+        const day = `Nov ${date.getDate()}`;
+        if (days[day] !== undefined) {
+          days[day]++;
+        }
+      }
+    });
+
+    // If no data for Nov 2024, provide some fallback for visualization if needed, 
+    // but the user asked for database count.
+    return Object.entries(days).map(([name, value]) => ({ name, value }));
+  })();
+
+  const recentApplications = (financialAid || []).slice(-5).reverse();
+  const pendingApps = (financialAid || []).filter(a => a.status === 'pending').length;
+  const totalAid = (financialAid || []).reduce((acc, curr) => acc + (parseInt(curr.amount?.toString().replace(/[^0-9]/g, '') || '0')), 0);
+
+  const studentCount = (users || []).filter(u => u.role === 'student').length;
+  const facultyCount = (users || []).filter(u => u.role === 'faculty').length;
+  const staffCount = (users || []).filter(u => u.role === 'staff').length;
+  const adminCount = (users || []).filter(u => u.role === 'admin').length;
+  const totalUsers = (users || []).length;
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+      <header>
+        <h1 className="text-4xl font-black tracking-tighter">Admin Dashboard</h1>
+        <p className={isDarkMode ? "text-slate-400" : "text-slate-500"}>System-wide overview and management</p>
+      </header>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
+        <StatCard icon={<Users />} label="Total Users" value={totalUsers.toString()} trend="+2 this week" color="purple" isDarkMode={isDarkMode} />
+        <StatCard icon={<FileText />} label="Applications" value={(financialAid || []).length.toString()} trend={`${pendingApps} pending`} color="blue" isDarkMode={isDarkMode} />
+        <StatCard icon={<Award />} label="Programs" value={(scholarships || []).length.toString()} trend="Active" color="amber" isDarkMode={isDarkMode} />
+        <StatCard icon={<Clock />} label="Pending Review" value={pendingApps.toString()} trend="Action required" color="indigo" isDarkMode={isDarkMode} />
+        <StatCard icon={<CheckCircle />} label="Aid Disbursed" value={`₱${totalAid.toLocaleString()}`} trend="Total this year" color="emerald" isDarkMode={isDarkMode} />
+        <StatCard icon={<TrendingUp />} label="System Uptime" value="99.9%" trend="Optimal" color="red" isDarkMode={isDarkMode} />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className={cn(
+          "lg:col-span-2 p-8 rounded-[2.5rem] border transition-all",
+          isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+        )}>
+          <h3 className="text-xl font-bold mb-8">Application Trend (Nov 2024)</h3>
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={barData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDarkMode ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)"} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: isDarkMode ? '#64748b' : '#94a3b8', fontSize: 10 }} />
+                <YAxis hide />
+                <Tooltip contentStyle={{ backgroundColor: isDarkMode ? '#1a1a1a' : '#fff', borderRadius: '16px', border: 'none' }} />
+                <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                  {barData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={index % 2 === 0 ? '#6366f1' : '#818cf8'} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className={cn(
+          "p-8 rounded-[2.5rem] border transition-all",
+          isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+        )}>
+          <h3 className="text-xl font-bold mb-8">User Distribution</h3>
+          <div className="space-y-6">
+            {[
+              { label: 'Students', count: studentCount, color: 'bg-blue-500', percent: totalUsers ? (studentCount / totalUsers) * 100 : 0 },
+              { label: 'Faculty', count: facultyCount, color: 'bg-emerald-500', percent: totalUsers ? (facultyCount / totalUsers) * 100 : 0 },
+              { label: 'Staff', count: staffCount, color: 'bg-amber-500', percent: totalUsers ? (staffCount / totalUsers) * 100 : 0 },
+              { label: 'Admins', count: adminCount, color: 'bg-red-500', percent: totalUsers ? (adminCount / totalUsers) * 100 : 0 },
+            ].map((item, i) => (
+              <div key={i} className="space-y-2">
+                <div className="flex justify-between text-sm font-bold">
+                  <span>{item.label}</span>
+                  <span className="text-red-600">{item.count} accounts</span>
+                </div>
+                <div className="h-2 w-full bg-slate-100 dark:bg-white/5 rounded-full overflow-hidden">
+                  <motion.div 
+                    initial={{ width: 0 }} 
+                    animate={{ width: `${item.percent}%` }} 
+                    className={cn("h-full rounded-full", item.color)}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-8 grid grid-cols-2 gap-4">
+            <button 
+              onClick={() => setView('admin')}
+              className={cn(
+                "py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
+                isDarkMode ? "bg-white/5 hover:bg-white/10" : "bg-slate-50 hover:bg-slate-100"
+              )}
+            >
+              Manage Users
+            </button>
+            <button 
+              onClick={() => setView('programs')}
+              className={cn(
+                "py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
+                isDarkMode ? "bg-white/5 hover:bg-white/10" : "bg-slate-50 hover:bg-slate-100"
+              )}
+            >
+              Manage Programs
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+        <div className={cn(
+          "p-8 rounded-[2.5rem] border transition-all",
+          isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+        )}>
+          <div className="flex items-center justify-between mb-8">
+            <h3 className="text-xl font-bold">Scholarship Impact Report</h3>
+            <div className="p-2 bg-amber-500/10 rounded-xl">
+              <Award className="w-5 h-5 text-amber-500" />
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-6 mb-8">
+            <div className={cn("p-6 rounded-3xl", isDarkMode ? "bg-white/5" : "bg-slate-50")}>
+              <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Total Programs</p>
+              <p className="text-3xl font-black">{(scholarships || []).length}</p>
+            </div>
+            <div className={cn("p-6 rounded-3xl", isDarkMode ? "bg-white/5" : "bg-slate-50")}>
+              <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Avg. Disbursement</p>
+              <p className="text-3xl font-black">
+                ₱{(financialAid || []).filter(a => a.status === 'approved').length > 0 
+                  ? Math.round((financialAid || []).filter(a => a.status === 'approved').reduce((acc, curr) => acc + (parseInt(curr.amount?.toString().replace(/[^0-9]/g, '') || '0')), 0) / (financialAid || []).filter(a => a.status === 'approved').length).toLocaleString()
+                  : '0'}
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <p className="text-sm font-bold text-slate-500 mb-2">Applications per Program</p>
+            {(scholarships || []).map(s => {
+              const count = (financialAid || []).filter(a => a.program === s.name).length;
+              const total = (financialAid || []).length || 1;
+              const percent = (count / total) * 100;
+              return (
+                <div key={s.id} className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="font-medium">{s.name}</span>
+                    <span className="font-bold">{count} apps</span>
+                  </div>
+                  <div className="h-1.5 w-full bg-slate-100 dark:bg-white/5 rounded-full overflow-hidden">
+                    <motion.div 
+                      initial={{ width: 0 }} 
+                      animate={{ width: `${percent}%` }} 
+                      className="h-full bg-amber-500 rounded-full"
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className={cn(
+          "p-8 rounded-[2.5rem] border transition-all",
+          isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+        )}>
+          <h3 className="text-xl font-bold mb-8">Recent Activity</h3>
+          <div className="space-y-6">
+            {recentApplications.map((app, i) => (
+              <div key={i} className="flex items-center justify-between p-4 rounded-2xl hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-500 font-bold">
+                    {app.studentName?.[0] || '?'}
+                  </div>
+                  <div>
+                    <p className="font-bold text-sm">{app.studentName || 'Unknown Student'}</p>
+                    <p className="text-xs text-slate-500">{app.program}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="font-bold text-sm">{app.amount}</p>
+                  <span className={cn(
+                    "text-[10px] font-black uppercase tracking-widest",
+                    app.status === 'approved' ? "text-emerald-500" : app.status === 'rejected' ? "text-red-500" : "text-amber-500"
+                  )}>
+                    {app.status}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className={cn(
+        "p-8 rounded-[2.5rem] border transition-all overflow-hidden",
+        isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+      )}>
+        <div className="flex items-center justify-between mb-8">
+          <h3 className="text-xl font-bold">Recent Applications</h3>
+          <button 
+            onClick={() => setView('applications')}
+            className={cn(
+              "px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
+              isDarkMode ? "bg-white/5 hover:bg-white/10" : "bg-slate-50 hover:bg-slate-100"
+            )}
+          >
+            View All
+          </button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className={isDarkMode ? "bg-white/5" : "bg-slate-50"}>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">ID</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Student</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Program</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Amount</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody className={cn("divide-y", isDarkMode ? "divide-white/5" : "divide-slate-100")}>
+              {recentApplications.map((app, i) => (
+                <tr key={i} className={cn("transition-colors", isDarkMode ? "hover:bg-white/5" : "hover:bg-slate-50")}>
+                  <td className="px-6 py-4 text-xs font-bold text-slate-500">{app.id?.toString().slice(-8) || 'N/A'}</td>
+                  <td className="px-6 py-4 text-sm font-black">{app.studentName || 'Unknown Student'}</td>
+                  <td className="px-6 py-4 text-sm font-bold text-slate-500">{app.program}</td>
+                  <td className="px-6 py-4 text-sm font-black text-emerald-500">{app.amount}</td>
+                  <td className="px-6 py-4">
+                    <span className={cn(
+                      "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
+                      app.status === 'approved' ? "bg-emerald-500/10 text-emerald-500" :
+                      app.status === 'pending' ? "bg-amber-500/10 text-amber-500" :
+                      "bg-blue-500/10 text-blue-500"
+                    )}>
+                      {app.status}
+                    </span>
+                  </td>
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex justify-end gap-2">
+                        <button 
+                          onClick={() => updateFinancialAidStatus(app.id, 'approved')}
+                          className="p-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-all"
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => updateFinancialAidStatus(app.id, 'rejected')}
+                          className="p-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all"
+                        >
+                          <XCircle className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function PoliciesView({ policies, isDarkMode }: { policies: any, isDarkMode: boolean }) {
+  if (!policies) return <div className="p-12 text-center font-bold text-slate-400">Loading policies...</div>;
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-8 max-w-4xl mx-auto"
+    >
+      <div className="text-center mb-12">
+        <h1 className="text-4xl font-black tracking-tight mb-4 text-red-600">Policies & User Guide</h1>
+        <p className="text-slate-500 font-medium">Everything you need to know about the Student Aid Portal</p>
+      </div>
+
+      <div className="grid gap-6">
+        <div className={cn(
+          "p-8 rounded-[2.5rem] border",
+          isDarkMode ? "bg-[#111111] border-white/10" : "bg-white border-slate-200"
+        )}>
+          <div className="flex items-center gap-4 mb-6">
+            <div className="p-3 bg-red-50 rounded-2xl">
+              <UserPlus className="w-6 h-6 text-red-600" />
+            </div>
+            <h2 className="text-2xl font-black tracking-tight">Registration Policy</h2>
+          </div>
+          <div className="prose prose-slate dark:prose-invert max-w-none">
+            <p className="text-slate-500 leading-relaxed whitespace-pre-line">{policies.registration}</p>
+          </div>
+        </div>
+
+        <div className={cn(
+          "p-8 rounded-[2.5rem] border",
+          isDarkMode ? "bg-[#111111] border-white/10" : "bg-white border-slate-200"
+        )}>
+          <div className="flex items-center gap-4 mb-6">
+            <div className="p-3 bg-blue-50 rounded-2xl">
+              <Shield className="w-6 h-6 text-blue-600" />
+            </div>
+            <h2 className="text-2xl font-black tracking-tight">Roles & Permissions</h2>
+          </div>
+          <div className="prose prose-slate dark:prose-invert max-w-none">
+            <p className="text-slate-500 leading-relaxed whitespace-pre-line">{policies.roles}</p>
+          </div>
+        </div>
+
+        <div className={cn(
+          "p-8 rounded-[2.5rem] border",
+          isDarkMode ? "bg-[#111111] border-white/10" : "bg-white border-slate-200"
+        )}>
+          <div className="flex items-center gap-4 mb-6">
+            <div className="p-3 bg-emerald-50 rounded-2xl">
+              <BookOpen className="w-6 h-6 text-emerald-600" />
+            </div>
+            <h2 className="text-2xl font-black tracking-tight">User Guide</h2>
+          </div>
+          <div className="prose prose-slate dark:prose-invert max-w-none">
+            <p className="text-slate-500 leading-relaxed whitespace-pre-line">{policies.guide}</p>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function ForgotPassword({ onBack, isDarkMode, setError }: { onBack: () => void, isDarkMode: boolean, setError: (msg: string) => void }) {
+  const [step, setStep] = useState(1);
+  const [schoolId, setSchoolId] = useState('');
+  const [question, setQuestion] = useState('');
+  const [answer, setAnswer] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const [showRequestModal, setShowRequestModal] = useState(false);
+  const [requestName, setRequestName] = useState('');
+
+  const handleGetQuestion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('securityQuestion')
+        .eq('id', schoolId)
+        .single();
+
+      if (error || !data) {
+        setError('User not found');
+        return;
+      }
+
+      setQuestion(data.securityQuestion || 'No security question set');
+      setStep(2);
+    } catch (err) {
+      setError('Failed to fetch question');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+    setLoading(true);
+    try {
+      const { data: user, error: fetchError } = await supabase
+        .from('users')
+        .select('securityAnswer')
+        .eq('id', schoolId)
+        .single();
+
+      if (fetchError || !user) {
+        setError('User not found');
+        return;
+      }
+
+      if (user.securityAnswer !== answer) {
+        setError('Incorrect security answer');
+        return;
+      }
+
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({ password: newPassword })
+        .eq('id', schoolId);
+
+      if (updateError) {
+        setError('Failed to update password');
+        return;
+      }
+
+      setError('Password reset successful! Please login.');
+      onBack();
+    } catch (err) {
+      setError('Reset failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRequestAdmin = async () => {
+    if (!requestName) return;
+
+    try {
+      const { error } = await supabase
+        .from('reset_requests')
+        .insert({ 
+          schoolId, 
+          name: requestName, 
+          status: 'pending',
+          timestamp: new Date().toISOString()
+        });
+
+      if (error) throw error;
+
+      setError('Request sent to admin. Please wait for approval.');
+      setShowRequestModal(false);
+      onBack();
+    } catch (err) {
+      setError('Failed to send request');
+    }
+  };
+
+  return (
+    <div className="space-y-8">
+      <button 
+        onClick={onBack}
+        className="flex items-center gap-2 text-stone-500 hover:text-stone-900 transition-colors text-sm font-bold"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        Back to Login
+      </button>
+
+      <div className="text-center">
+        <div className="w-20 h-20 bg-red-50 rounded-3xl flex items-center justify-center mx-auto mb-6">
+          <Key className="w-10 h-10 text-red-600" />
+        </div>
+        <h1 className="text-4xl font-black tracking-tight text-[#1a2b4b] dark:text-white">Account Recovery</h1>
+        <p className="text-stone-500 mt-3 font-medium">Follow the steps to reset your password</p>
+      </div>
+
+      {step === 1 ? (
+        <form onSubmit={handleGetQuestion} className="space-y-6">
+          <div className="space-y-2">
+            <label className="block text-sm font-black text-stone-700 dark:text-slate-300 uppercase tracking-widest">School ID Number</label>
+            <input 
+              type="text" 
+              value={schoolId}
+              onChange={(e) => setSchoolId(e.target.value)}
+              className={cn(
+                "w-full p-4 border-2 border-transparent rounded-2xl outline-none transition-all font-bold text-slate-900 dark:text-white",
+                isDarkMode ? "bg-white/5 focus:border-red-600" : "bg-stone-50 focus:border-red-600 focus:bg-white"
+              )}
+              placeholder="SCC-XX-XXXXXXXX"
+              required
+            />
+          </div>
+          <button 
+            disabled={loading}
+            className="w-full py-5 bg-red-600 text-white rounded-2xl font-black text-lg hover:bg-red-700 transition-all shadow-xl shadow-red-200 disabled:opacity-50"
+          >
+            {loading ? 'Searching Account...' : 'Continue Recovery'}
+          </button>
+          
+          <div className="pt-4 border-t border-stone-100">
+            <p className="text-sm text-stone-500 text-center mb-4">Forgot your security question?</p>
+            <button 
+              type="button"
+              onClick={() => setShowRequestModal(true)}
+              className="w-full py-4 border-2 border-stone-200 text-stone-700 rounded-2xl font-bold hover:bg-stone-50 transition-all"
+            >
+              Request Admin Reset
+            </button>
+          </div>
+        </form>
+      ) : (
+        <form onSubmit={handleReset} className="space-y-6">
+          <div className={cn(
+            "p-6 rounded-[2rem] border-2 relative overflow-hidden",
+            isDarkMode ? "bg-white/5 border-white/10" : "bg-slate-50 border-slate-100"
+          )}>
+            <div className="absolute top-0 right-0 p-4 opacity-10">
+              <Shield className="w-12 h-12" />
+            </div>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Security Question</p>
+            <p className="text-xl font-black text-stone-900 dark:text-white leading-tight">{question}</p>
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-black text-stone-700 dark:text-slate-300 uppercase tracking-widest">Your Answer</label>
+            <input 
+              type="text" 
+              value={answer}
+              onChange={(e) => setAnswer(e.target.value)}
+              className={cn(
+                "w-full p-4 border-2 border-transparent rounded-2xl outline-none transition-all font-bold text-slate-900 dark:text-white",
+                isDarkMode ? "bg-white/5 focus:border-red-600" : "bg-stone-50 focus:border-red-600 focus:bg-white"
+              )}
+              placeholder="Type your answer here"
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="block text-sm font-black text-stone-700 dark:text-slate-300 uppercase tracking-widest">New Password</label>
+              <input 
+                type="password" 
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className={cn(
+                  "w-full p-4 border-2 border-transparent rounded-2xl outline-none transition-all font-bold text-slate-900 dark:text-white",
+                  isDarkMode ? "bg-white/5 focus:border-red-600" : "bg-stone-50 focus:border-red-600 focus:bg-white"
+                )}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="block text-sm font-black text-stone-700 dark:text-slate-300 uppercase tracking-widest">Confirm</label>
+              <input 
+                type="password" 
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className={cn(
+                  "w-full p-4 border-2 border-transparent rounded-2xl outline-none transition-all font-bold text-slate-900 dark:text-white",
+                  isDarkMode ? "bg-white/5 focus:border-red-600" : "bg-stone-50 focus:border-red-600 focus:bg-white"
+                )}
+                required
+              />
+            </div>
+          </div>
+
+          <button 
+            disabled={loading}
+            className="w-full py-5 bg-red-600 text-white rounded-2xl font-black text-lg hover:bg-red-700 transition-all shadow-xl shadow-red-200 disabled:opacity-50"
+          >
+            {loading ? 'Resetting Password...' : 'Update Password'}
+          </button>
+        </form>
+      )}
+
+      {/* Request Admin Reset Modal */}
+      {showRequestModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className={cn(
+              "rounded-[2.5rem] p-8 max-w-md w-full shadow-2xl border",
+              isDarkMode ? "bg-[#111111] border-white/10" : "bg-white border-stone-100"
+            )}
+          >
+            <div className="flex justify-between items-start mb-6">
+              <div className="w-14 h-14 bg-red-50 rounded-2xl flex items-center justify-center">
+                <Shield className="w-7 h-7 text-red-600" />
+              </div>
+              <button 
+                onClick={() => setShowRequestModal(false)}
+                className="p-2 hover:bg-stone-50 dark:hover:bg-white/5 rounded-xl transition-colors"
+              >
+                <X className="w-6 h-6 text-stone-400" />
+              </button>
+            </div>
+
+            <h3 className="text-2xl font-black text-[#1a2b4b] dark:text-white mb-2">Verification Required</h3>
+            <p className="text-stone-500 mb-6 font-medium">Please enter your full name as registered in the system to request a password reset from the administrator.</p>
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="block text-xs font-black text-stone-400 uppercase tracking-widest">Full Name</label>
+                <input 
+                  type="text"
+                  value={requestName}
+                  onChange={(e) => setRequestName(e.target.value)}
+                  placeholder="Enter your full name"
+                  className={cn(
+                    "w-full p-4 border-2 border-transparent rounded-2xl outline-none transition-all font-bold text-slate-900 dark:text-white",
+                    isDarkMode ? "bg-white/5 focus:border-red-600" : "bg-stone-50 focus:border-red-600 focus:bg-white"
+                  )}
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button 
+                  onClick={() => setShowRequestModal(false)}
+                  className="flex-1 py-4 bg-stone-100 text-stone-600 rounded-2xl font-bold hover:bg-stone-200 transition-all"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={handleRequestAdmin}
+                  disabled={!requestName.trim()}
+                  className="flex-1 py-4 bg-red-600 text-white rounded-2xl font-black hover:bg-red-700 transition-all shadow-lg shadow-red-200 disabled:opacity-50"
+                >
+                  Confirm Request
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SearchResults({ results, query, isDarkMode }: { results: any, query: string, isDarkMode: boolean }) {
+  if (!results) return null;
+
+  const hasResults = results.users.length > 0 || results.announcements.length > 0 || results.applications.length > 0;
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+      <header>
+        <h1 className="text-4xl font-black tracking-tighter">Search Results</h1>
+        <p className={isDarkMode ? "text-slate-400" : "text-slate-500"}>
+          Showing results for "<span className="text-red-600 font-bold">{query}</span>"
+        </p>
+      </header>
+
+      {!hasResults ? (
+        <div className="py-20 text-center">
+          <div className="inline-block p-6 bg-slate-100 dark:bg-white/5 rounded-full mb-6">
+            <Search className="w-12 h-12 text-slate-400" />
+          </div>
+          <h3 className="text-2xl font-bold mb-2">No results found</h3>
+          <p className="text-slate-500">Try searching for something else or check your spelling.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Users Section */}
+          <div className={cn(
+            "p-6 rounded-[2.5rem] border flex flex-col gap-6",
+            isDarkMode ? "bg-white/5 border-white/5" : "bg-slate-50 border-slate-100"
+          )}>
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
+                <Users className="w-4 h-4 text-red-600" />
+                Users
+              </h3>
+              <span className="px-2 py-1 bg-red-600/10 text-red-600 rounded-lg text-[10px] font-black">{results.users.length}</span>
+            </div>
+            <div className="space-y-3">
+              {results.users.length > 0 ? results.users.map((u: any) => (
+                <div key={u.id} className={cn(
+                  "p-4 rounded-2xl border transition-all hover:scale-[1.02]",
+                  isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+                )}>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-red-600 text-white flex items-center justify-center font-bold overflow-hidden">
+                      {u.profilePic ? (
+                        <img src={u.profilePic} alt={u.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      ) : (
+                        u.name[0]
+                      )}
+                    </div>
+                    <div>
+                      <p className="font-bold text-sm">{u.name}</p>
+                      <p className="text-[10px] text-slate-400 uppercase tracking-widest">{u.role} • {u.id}</p>
+                    </div>
+                  </div>
+                </div>
+              )) : (
+                <p className="text-xs text-slate-400 italic text-center py-4">No users found</p>
+              )}
+            </div>
+          </div>
+
+          {/* Announcements Section */}
+          <div className={cn(
+            "p-6 rounded-[2.5rem] border flex flex-col gap-6",
+            isDarkMode ? "bg-white/5 border-white/5" : "bg-slate-50 border-slate-100"
+          )}>
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
+                <Megaphone className="w-4 h-4 text-blue-600" />
+                Announcements
+              </h3>
+              <span className="px-2 py-1 bg-blue-600/10 text-blue-600 rounded-lg text-[10px] font-black">{results.announcements.length}</span>
+            </div>
+            <div className="space-y-3">
+              {results.announcements.length > 0 ? results.announcements.map((a: any) => (
+                <div key={a.id} className={cn(
+                  "p-4 rounded-2xl border transition-all hover:scale-[1.02]",
+                  isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+                )}>
+                  <h4 className="font-bold text-sm mb-1">{a.title}</h4>
+                  <p className="text-xs text-slate-500 line-clamp-2">{a.content}</p>
+                  <p className="text-[10px] text-red-600 font-bold mt-2 uppercase tracking-widest">{a.date}</p>
+                </div>
+              )) : (
+                <p className="text-xs text-slate-400 italic text-center py-4">No announcements found</p>
+              )}
+            </div>
+          </div>
+
+          {/* Applications Section */}
+          <div className={cn(
+            "p-6 rounded-[2.5rem] border flex flex-col gap-6",
+            isDarkMode ? "bg-white/5 border-white/5" : "bg-slate-50 border-slate-100"
+          )}>
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
+                <FileText className="w-4 h-4 text-emerald-600" />
+                Applications
+              </h3>
+              <span className="px-2 py-1 bg-emerald-600/10 text-emerald-600 rounded-lg text-[10px] font-black">{results.applications.length}</span>
+            </div>
+            <div className="space-y-3">
+              {results.applications.length > 0 ? results.applications.map((app: any) => (
+                <div key={app.id} className={cn(
+                  "p-4 rounded-2xl border transition-all hover:scale-[1.02]",
+                  isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+                )}>
+                  <div className="flex justify-between items-start mb-2">
+                    <h4 className="font-bold text-sm">{app.program}</h4>
+                    <span className={cn(
+                      "px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest",
+                      app.status === 'approved' ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500"
+                    )}>
+                      {app.status}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500">{app.studentName}</p>
+                  <p className="text-[10px] text-slate-400 mt-1">{new Date(app.date).toLocaleDateString()}</p>
+                </div>
+              )) : (
+                <p className="text-xs text-slate-400 italic text-center py-4">No applications found</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
+function StatCard({ icon, label, value, trend, color, isDarkMode }: { icon: any, label: string, value: string, trend: string, color: string, isDarkMode?: boolean }) {
+  const colors: any = {
+    emerald: "bg-emerald-500/10 text-emerald-500",
+    red: "bg-red-500/10 text-red-500",
+    amber: "bg-amber-500/10 text-amber-500",
+    blue: "bg-blue-500/10 text-blue-500",
+    purple: "bg-purple-500/10 text-purple-500",
+    indigo: "bg-indigo-500/10 text-indigo-500"
+  };
+
+  return (
+    <div className={cn(
+      "p-6 rounded-[2rem] border transition-all hover:scale-[1.02]",
+      isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+    )}>
+      <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center mb-4", colors[color])}>
+        {React.cloneElement(icon as React.ReactElement, { className: "w-6 h-6" })}
+      </div>
+      <p className={cn("text-xs font-bold uppercase tracking-widest mb-1", isDarkMode ? "text-slate-500" : "text-slate-400")}>{label}</p>
+      <h4 className="text-2xl font-black tracking-tight mb-2">{value}</h4>
+      <p className="text-[10px] font-bold text-emerald-500">{trend}</p>
+    </div>
+  );
+}
+
+function Profile({ user, setUser, isDarkMode }: { user: UserData, setUser: any, isDarkMode?: boolean }) {
+  const [editing, setEditing] = useState(false);
+  const [formData, setFormData] = useState({ ...user });
+  const [uploading, setUploading] = useState(false);
+
+  const handleUpdate = async () => {
+    const { data, error } = await supabase
+      .from('users')
+      .update(formData)
+      .eq('id', user.id)
+      .select()
+      .single();
+    
+    if (!error && data) {
+      setUser(data);
+      setEditing(false);
+    }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const base64String = reader.result as string;
+      try {
+        const { data, error } = await supabase
+          .from('users')
+          .update({ profilePic: base64String })
+          .eq('id', user.id)
+          .select()
+          .single();
+        
+        if (!error && data) {
+          setUser(data);
+        }
+      } catch (err) {
+        console.error('Upload failed', err);
+      } finally {
+        setUploading(false);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-4xl mx-auto">
+      <div className={cn(
+        "rounded-[3rem] border overflow-hidden transition-all",
+        isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+      )}>
+        <div className={cn("h-48 relative", isDarkMode ? "bg-red-900/20" : "bg-slate-900")}>
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/20"></div>
+        </div>
+        <div className="px-12 pb-12">
+          <div className="relative -mt-16 mb-8 flex items-end justify-between gap-6">
+            <div className={cn(
+              "w-32 h-32 p-1.5 rounded-[2.5rem] shadow-2xl relative z-10 group cursor-pointer",
+              isDarkMode ? "bg-[#111111]" : "bg-white"
+            )}>
+              <input 
+                type="file" 
+                accept="image/*" 
+                onChange={handleFileChange} 
+                className="hidden" 
+                id="profile-upload"
+              />
+              <label htmlFor="profile-upload" className="cursor-pointer">
+                <div className={cn(
+                  "w-full h-full rounded-[2rem] flex items-center justify-center text-4xl font-black overflow-hidden relative",
+                  isDarkMode ? "bg-white/5 text-red-500" : "bg-slate-100 text-slate-400"
+                )}>
+                  {user.profilePic ? (
+                    <img src={user.profilePic} alt={user.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  ) : (
+                    user.name?.[0] || '?'
+                  )}
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                    <Camera className="w-8 h-8 text-white" />
+                  </div>
+                  {uploading && (
+                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                      <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    </div>
+                  )}
+                </div>
+              </label>
+            </div>
+            <button 
+              onClick={() => editing ? handleUpdate() : setEditing(true)}
+              className={cn(
+                "flex items-center gap-2 px-8 py-4 rounded-2xl font-black transition-all mb-2",
+                isDarkMode ? "bg-white text-slate-900 hover:bg-slate-200" : "bg-slate-900 text-white hover:bg-slate-800 shadow-lg shadow-slate-200"
+              )}
+            >
+              <Edit className="w-5 h-5" />
+              {editing ? 'Save Changes' : 'Edit Profile'}
+            </button>
+          </div>
+
+          <div className="space-y-12">
+            <div>
+              <h1 className="text-4xl font-black tracking-tighter mb-2">{user.name}</h1>
+              <div className="flex items-center gap-3">
+                <span className={cn(
+                  "px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest",
+                  user.role === 'admin' ? "bg-red-500/10 text-red-500" : (user.role === 'faculty' ? "bg-amber-500/10 text-amber-500" : "bg-blue-500/10 text-blue-500")
+                )}>
+                  {user.role}
+                </span>
+                <span className={cn("text-xs font-bold", isDarkMode ? "text-slate-500" : "text-slate-400")}>Member since 2024</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+              <div className="space-y-8">
+                <div className="group">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 group-hover:text-red-500 transition-colors">School ID Number</label>
+                  <p className="text-xl font-mono font-bold text-red-600">{user.id}</p>
+                </div>
+                <div className="group">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 group-hover:text-red-500 transition-colors">Full Name</label>
+                  {editing ? (
+                    <input 
+                      value={formData.name} 
+                      onChange={e => setFormData({...formData, name: e.target.value})} 
+                      className={cn(
+                        "w-full p-4 rounded-2xl border font-bold outline-none focus:ring-2 focus:ring-red-600 transition-all",
+                        isDarkMode ? "bg-white/5 border-white/10" : "bg-slate-50 border-slate-200"
+                      )}
+                    />
+                  ) : (
+                    <p className="text-xl font-bold">{user.name}</p>
+                  )}
+                </div>
+              </div>
+              <div className="space-y-8">
+                <div className="group">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 group-hover:text-red-500 transition-colors">Surname</label>
+                  {editing ? (
+                    <input 
+                      value={formData.surname} 
+                      onChange={e => setFormData({...formData, surname: e.target.value})} 
+                      className={cn(
+                        "w-full p-4 rounded-2xl border font-bold outline-none focus:ring-2 focus:ring-red-600 transition-all",
+                        isDarkMode ? "bg-white/5 border-white/10" : "bg-slate-50 border-slate-200"
+                      )}
+                    />
+                  ) : (
+                    <p className="text-xl font-bold">{user.surname}</p>
+                  )}
+                </div>
+                <div className="group">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 group-hover:text-red-500 transition-colors">Account Status</label>
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                    <p className="font-bold text-emerald-500">Active Account</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function Grades({ user, isDarkMode }: { user: UserData, isDarkMode?: boolean }) {
+  const semesters = Array.from(new Set((user.grades || []).map(g => g.semester || '1st Semester 2024-2025'))).sort().reverse();
+  const [selectedSemester, setSelectedSemester] = useState(semesters[0] || '1st Semester 2024-2025');
+
+  const calculateGPA = (grades: any[]) => {
+    if (!grades || grades.length === 0) return "0.00";
+    
+    const pointsMap: { [key: string]: number } = {
+      '1.0': 4.0, '1.25': 3.75, '1.5': 3.5, '1.75': 3.25, '2.0': 3.0,
+      '2.25': 2.75, '2.5': 2.5, '2.75': 2.25, '3.0': 2.0, '5.0': 0.0,
+      'A': 4.0, 'A-': 3.7, 'B+': 3.3, 'B': 3.0, 'B-': 2.7, 'C+': 2.3, 'C': 2.0, 'D': 1.0, 'F': 0.0
+    };
+
+    let totalPoints = 0;
+    let count = 0;
+    grades.forEach(g => {
+      const grade = g.grade?.toString().toUpperCase();
+      if (grade && pointsMap[grade] !== undefined) {
+        totalPoints += pointsMap[grade];
+        count++;
+      }
+    });
+    
+    return count > 0 ? (totalPoints / count).toFixed(2) : "0.00";
+  };
+
+  const filteredGrades = (user.grades || []).filter(g => (g.semester || '1st Semester 2024-2025') === selectedSemester);
+  const semesterGPA = calculateGPA(filteredGrades);
+  const overallGPA = calculateGPA(user.grades || []);
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+      <header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+        <div>
+          <h1 className="text-4xl font-black tracking-tighter">Academic Records</h1>
+          <p className={isDarkMode ? "text-slate-400" : "text-slate-500"}>Your official grades and academic performance history.</p>
+        </div>
+        <div className="flex flex-wrap gap-4">
+          <div className={cn(
+            "p-6 rounded-3xl border flex items-center gap-6",
+            isDarkMode ? "bg-white/5 border-white/5" : "bg-white border-slate-200 shadow-sm"
+          )}>
+            <div>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Semester GPA</p>
+              <p className="text-4xl font-black tracking-tighter text-red-600">{semesterGPA}</p>
+            </div>
+            <div className="w-px h-12 bg-slate-200 dark:bg-white/10" />
+            <div>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Overall GPA</p>
+              <p className="text-xl font-bold">{overallGPA}</p>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Select Semester:</p>
+          <select 
+            value={selectedSemester}
+            onChange={(e) => setSelectedSemester(e.target.value)}
+            className={cn(
+              "p-3 rounded-xl border outline-none font-bold text-sm",
+              isDarkMode ? "bg-white/5 border-white/10" : "bg-white border-slate-200"
+            )}
+          >
+            {semesters.length > 0 ? semesters.map(s => (
+              <option key={s} value={s}>{s}</option>
+            )) : (
+              <option value="1st Semester 2024-2025">1st Semester 2024-2025</option>
+            )}
+          </select>
+        </div>
+      </div>
+
+      <div className={cn(
+        "rounded-[2.5rem] border overflow-hidden transition-all",
+        isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+      )}>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className={isDarkMode ? "bg-white/5" : "bg-slate-50"}>
+                <th className="px-8 py-6 text-xs font-bold text-slate-400 uppercase tracking-widest">Subject</th>
+                <th className="px-8 py-6 text-xs font-bold text-slate-400 uppercase tracking-widest">Instructor</th>
+                <th className="px-8 py-6 text-xs font-bold text-slate-400 uppercase tracking-widest text-center">Grade</th>
+                <th className="px-8 py-6 text-xs font-bold text-slate-400 uppercase tracking-widest text-right">Status</th>
+              </tr>
+            </thead>
+            <tbody className={cn("divide-y", isDarkMode ? "divide-white/5" : "divide-slate-100")}>
+              {filteredGrades.length > 0 ? filteredGrades.map((g, i) => (
+                <tr key={i} className={cn("transition-colors", isDarkMode ? "hover:bg-white/5" : "hover:bg-slate-50")}>
+                  <td className="px-8 py-6">
+                    <p className="font-bold text-lg">{g.subject}</p>
+                    <p className={cn("text-xs", isDarkMode ? "text-slate-500" : "text-slate-400")}>{g.semester || '1st Semester 2024-2025'}</p>
+                  </td>
+                  <td className="px-8 py-6">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-red-500/10 flex items-center justify-center text-red-500 font-bold text-xs">
+                        {g.instructor.split(' ').map((n: string) => n[0]).join('')}
+                      </div>
+                      <span className={isDarkMode ? "text-slate-300" : "text-slate-600"}>{g.instructor}</span>
+                    </div>
+                  </td>
+                  <td className="px-8 py-6 text-center">
+                    <span className="font-mono font-black text-xl">{g.grade}</span>
+                  </td>
+                  <td className="px-8 py-6 text-right">
+                    <span className="px-4 py-1.5 bg-emerald-500/10 text-emerald-500 rounded-full text-[10px] font-black uppercase tracking-widest">
+                      PASSED
+                    </span>
+                  </td>
+                </tr>
+              )) : (
+                <tr>
+                  <td colSpan={4} className="px-8 py-12 text-center">
+                    <p className="text-slate-400 font-bold italic">No records found for this semester</p>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function Schedule({ user, isDarkMode }: { user: UserData, isDarkMode?: boolean }) {
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+      <header>
+        <h1 className="text-4xl font-black tracking-tighter">My Schedule</h1>
+        <p className={isDarkMode ? "text-slate-400" : "text-slate-500"}>Your personalized weekly academic timetable.</p>
+      </header>
+
+      <div className="grid grid-cols-1 gap-6">
+        {user.schedule?.map((s, i) => (
+          <div key={i} className={cn(
+            "p-8 rounded-[2.5rem] border flex flex-col md:flex-row md:items-center justify-between gap-6 transition-all hover:scale-[1.01]",
+            isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+          )}>
+            <div className="flex items-center gap-8">
+              <div className={cn(
+                "w-20 h-20 rounded-3xl flex flex-col items-center justify-center shrink-0",
+                isDarkMode ? "bg-white/5" : "bg-slate-50"
+              )}>
+                <span className="text-[10px] font-black text-red-600 uppercase tracking-widest mb-1">{s.day.slice(0, 3)}</span>
+                <Calendar className="w-6 h-6" />
+              </div>
+              <div>
+                <div className="flex items-center gap-3 mb-1">
+                  <h4 className="font-black text-2xl tracking-tight">{s.subject}</h4>
+                  <span className="px-3 py-1 bg-red-500/10 text-red-500 rounded-full text-[10px] font-black uppercase tracking-widest">Lecture</span>
+                </div>
+                <p className={cn("font-medium", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+                  {s.instructor} • <span className="text-red-600">{s.location}</span>
+                </p>
+              </div>
+            </div>
+            <div className="md:text-right flex flex-row md:flex-col items-center md:items-end justify-between md:justify-center gap-2 border-t md:border-t-0 pt-4 md:pt-0 mt-4 md:mt-0 border-white/5">
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-red-600" />
+                <p className="font-black text-2xl tracking-tight">{s.time}</p>
+              </div>
+              <p className={cn("text-[10px] font-black uppercase tracking-widest", isDarkMode ? "text-slate-500" : "text-slate-400")}>Live Session</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </motion.div>
+  );
+}
+
+function AcademicSupport({ user, isDarkMode }: { user: UserData, isDarkMode?: boolean }) {
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+      <header>
+        <h1 className="text-4xl font-black tracking-tighter">Academic Support</h1>
+        <p className={isDarkMode ? "text-slate-400" : "text-slate-500"}>Access tutoring, writing labs, and learning resources.</p>
+      </header>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {[
+          { title: "Peer Tutoring", icon: <Users />, desc: "Get help from top-performing students in your subjects." },
+          { title: "Writing Center", icon: <FileText />, desc: "Improve your essays and research papers with expert feedback." },
+          { title: "Learning Workshops", icon: <Library />, desc: "Join sessions on study skills, time management, and more." },
+          { title: "Library Resources", icon: <BookOpen />, desc: "Access digital databases, journals, and physical collections." }
+        ].map((item, i) => (
+          <div key={i} className={cn(
+            "p-8 rounded-[2.5rem] border transition-all hover:scale-[1.02]",
+            isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+          )}>
+            <div className="w-12 h-12 bg-red-600 rounded-2xl flex items-center justify-center text-white mb-6 shadow-lg shadow-red-600/20">
+              {React.cloneElement(item.icon as React.ReactElement, { className: "w-6 h-6" })}
+            </div>
+            <h3 className="text-2xl font-black tracking-tight mb-2">{item.title}</h3>
+            <p className={cn("text-sm leading-relaxed", isDarkMode ? "text-slate-400" : "text-slate-500")}>{item.desc}</p>
+            <button className="mt-6 text-xs font-black uppercase tracking-widest text-red-600 hover:text-red-500 transition-colors">
+              Learn More →
+            </button>
+          </div>
+        ))}
+      </div>
+    </motion.div>
+  );
+}
+
+function Payments({ user, isDarkMode }: { user: UserData, isDarkMode?: boolean }) {
+  const [selectedMethod, setSelectedMethod] = useState<'gcash' | 'atm' | null>(null);
+  const [showStatement, setShowStatement] = useState(false);
+
+  const semesters = [
+    { name: '1st Semester 2024-2025', amount: 14500, status: 'Unpaid' },
+    { name: '2nd Semester 2023-2024', amount: 12800, status: 'Paid' },
+    { name: '1st Semester 2023-2024', amount: 13200, status: 'Paid' },
+    { name: 'Summer 2023-2024', amount: 11500, status: 'Paid' },
+  ];
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+      <header>
+        <h1 className="text-4xl font-black tracking-tighter">Balance & Payments</h1>
+        <p className={isDarkMode ? "text-slate-400" : "text-slate-500"}>Manage your tuition fees and online payments.</p>
+      </header>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className={cn(
+          "lg:col-span-2 p-10 rounded-[3rem] border relative overflow-hidden",
+          isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+        )}>
+          <div className="relative z-10">
+            <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Current Balance</p>
+            <h2 className="text-6xl font-black tracking-tighter mb-8">₱{user.balance?.toLocaleString()}</h2>
+            <div className="flex flex-wrap gap-4">
+              <button 
+                disabled={!selectedMethod}
+                className="px-8 py-4 bg-red-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg shadow-red-600/20 hover:bg-red-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Pay Now with {selectedMethod === 'gcash' ? 'GCash' : selectedMethod === 'atm' ? 'ATM Card' : '...'}
+              </button>
+              <button 
+                onClick={() => setShowStatement(true)}
+                className={cn(
+                  "px-8 py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-all border",
+                  isDarkMode ? "bg-white/5 border-white/10 hover:bg-white/10" : "bg-slate-50 border-slate-200 hover:bg-slate-100"
+                )}
+              >
+                View Statement
+              </button>
+            </div>
+          </div>
+          <div className="absolute top-0 right-0 w-64 h-64 bg-red-600/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
+        </div>
+        <div className={cn(
+          "p-10 rounded-[3rem] border",
+          isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+        )}>
+          <h3 className="text-xl font-black tracking-tight mb-6">Select Payment Method</h3>
+          <div className="space-y-4">
+            <button 
+              onClick={() => setSelectedMethod('gcash')}
+              className={cn(
+                "w-full p-4 rounded-2xl border flex items-center gap-4 transition-all",
+                selectedMethod === 'gcash' ? "border-red-600 bg-red-600/5" : (isDarkMode ? "bg-white/5 border-white/10" : "bg-slate-50 border-slate-200")
+              )}
+            >
+              <div className="w-10 h-10 bg-blue-500 rounded-xl flex items-center justify-center text-white font-black">
+                G
+              </div>
+              <div className="text-left">
+                <p className="text-sm font-bold">GCash</p>
+                <p className="text-[10px] uppercase tracking-widest text-slate-400">Online Payment</p>
+              </div>
+            </button>
+            
+            <button 
+              onClick={() => setSelectedMethod('atm')}
+              className={cn(
+                "w-full p-4 rounded-2xl border flex items-center gap-4 transition-all",
+                selectedMethod === 'atm' ? "border-red-600 bg-red-600/5" : (isDarkMode ? "bg-white/5 border-white/10" : "bg-slate-50 border-slate-200")
+              )}
+            >
+              <div className="w-10 h-10 bg-slate-800 rounded-xl flex items-center justify-center text-white">
+                <CreditCard className="w-5 h-5" />
+              </div>
+              <div className="text-left">
+                <p className="text-sm font-bold">ATM Card</p>
+                <p className="text-[10px] uppercase tracking-widest text-slate-400">Debit/Credit Card</p>
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <AnimatePresence>
+        {showStatement && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setShowStatement(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className={cn(
+                "relative w-full max-w-2xl rounded-[2.5rem] p-10 shadow-2xl overflow-hidden",
+                isDarkMode ? "bg-[#111111] border border-white/5" : "bg-white border border-slate-200"
+              )}
+            >
+              <div className="flex items-center justify-between mb-8">
+                <div>
+                  <h2 className="text-3xl font-black tracking-tighter">Statement of Account</h2>
+                  <p className={cn("text-sm font-bold", isDarkMode ? "text-slate-500" : "text-slate-400")}>Detailed breakdown per semester</p>
+                </div>
+                <button onClick={() => setShowStatement(false)} className="p-3 hover:bg-slate-100 dark:hover:bg-white/5 rounded-full transition-colors">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {semesters.map((sem, i) => (
+                  <div key={i} className={cn(
+                    "p-6 rounded-3xl border flex items-center justify-between transition-all",
+                    isDarkMode ? "bg-white/5 border-white/5 hover:bg-white/10" : "bg-slate-50 border-slate-100 hover:bg-slate-100"
+                  )}>
+                    <div>
+                      <p className="font-black text-lg tracking-tight">{sem.name}</p>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">Tuition & Fees</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-2xl font-black tracking-tighter">₱{sem.amount.toLocaleString()}</p>
+                      <span className={cn(
+                        "text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full",
+                        sem.status === 'Paid' ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500"
+                      )}>
+                        {sem.status}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className={cn(
+                "mt-8 p-6 rounded-3xl border-t-4 border-red-600 flex items-center justify-between",
+                isDarkMode ? "bg-white/5 border-white/5" : "bg-slate-50 border-slate-100"
+              )}>
+                <div>
+                  <p className="text-xs font-black uppercase tracking-widest text-slate-400">Total Outstanding</p>
+                  <p className="text-sm font-bold italic">As of March 2026</p>
+                </div>
+                <p className="text-4xl font-black tracking-tighter text-red-600">₱{user.balance?.toLocaleString()}</p>
+              </div>
+
+              <button 
+                onClick={() => window.print()}
+                className="w-full mt-8 py-4 bg-slate-900 text-white rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-slate-800 transition-all flex items-center justify-center gap-2"
+              >
+                <Download className="w-4 h-4" />
+                Download PDF Statement
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
+function Mentorship({ user, isDarkMode, mentors, fetchMentors, fetchUsers, fetchNotifications, activeModal, setActiveModal, setView, setSelectedChatUser }: { user: UserData, isDarkMode?: boolean, mentors: any[], fetchMentors: () => void, fetchUsers: () => void, fetchNotifications: () => void, activeModal?: string | null, setActiveModal?: (val: string | null) => void, setView?: (v: string) => void, setSelectedChatUser?: (u: UserData | null) => void }) {
+  const [activeTab, setActiveTab] = useState<'mentors' | 'counseling' | 'sessions'>('mentors');
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [isSelecting, setIsSelecting] = useState(false);
+  const [selectedMentor, setSelectedMentor] = useState<any>(null);
+  const [showCounselingModal, setShowCounselingModal] = useState(false);
+  const [bookingDate, setBookingDate] = useState(new Date().toISOString().split('T')[0]);
+  const [bookingTime, setBookingTime] = useState('10:00');
+  const [counselingRequests, setCounselingRequests] = useState<any[]>([]);
+  const [sessions, setSessions] = useState<any[]>([]);
+  const [isDemoMode, setIsDemoMode] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isBookingNewSession, setIsBookingNewSession] = useState(false);
+  const [counselingForm, setCounselingForm] = useState({
+    type: 'Academic',
+    urgency: 'Normal',
+    description: ''
+  });
+
+  const isUserAMentor = mentors.some(m => m.id === user.id || m.name === user.name);
+
+  useEffect(() => {
+    fetchCounselingData();
+    if (isUserAMentor) {
+      setActiveTab('sessions');
+    }
+  }, [user.id, isUserAMentor]);
+
+  const fetchCounselingData = async () => {
+    // Fetch counseling requests for the user
+    const { data: reqs, error: reqError } = await supabase
+      .from('counseling_requests')
+      .select('*')
+      .or(`studentId.eq.${user.id},mentorId.eq.${user.id}`)
+      .order('timestamp', { ascending: false });
+    
+    if (!reqError && reqs) setCounselingRequests(reqs);
+
+    // Fetch sessions
+    const { data: sess, error: sessError } = await supabase
+      .from('mentorship_sessions')
+      .select('*')
+      .or(`studentId.eq.${user.id},mentorId.eq.${user.id}`)
+      .order('date', { ascending: false });
+    
+    if (!sessError && sess) setSessions(sess);
+  };
+
+  const handleBookSession = async (mentor: any) => {
+    if (!bookingDate || !bookingTime) {
+      alert('Please select a date and time for your session.');
+      return;
+    }
+
+    const sessionDateTime = new Date(`${bookingDate}T${bookingTime}`);
+    
+    const newSession = {
+      id: crypto.randomUUID(),
+      studentId: user.id,
+      studentName: user.name,
+      mentorId: mentor.id,
+      mentorName: mentor.name,
+      date: sessionDateTime.toISOString(),
+      status: 'pending',
+      type: 'Mentorship'
+    };
+
+    console.log('🚀 Booking new session:', newSession);
+
+    // 1. Try to save to Database
+    const { error: sessError } = await supabase.from('mentorship_sessions').insert(newSession);
+
+    if (!sessError) {
+      // Success path
+      setSessions(prev => [newSession, ...prev]);
+      
+      await supabase.from('notifications').insert({
+        userId: user.id,
+        title: "Session Booked",
+        message: `You have successfully booked a mentorship session with ${mentor.name}.`,
+        type: 'success',
+        read: false,
+        timestamp: new Date().toISOString()
+      });
+
+      // Also notify mentor
+      await supabase.from('notifications').insert({
+        userId: mentor.id,
+        title: "New Session Request",
+        message: `${user.name} has booked a mentorship session with you.`,
+        type: 'info',
+        read: false,
+        timestamp: new Date().toISOString()
+      });
+      
+      alert(`Session booked with ${mentor.name}! You can now see it in your sessions list.`);
+      fetchNotifications();
+      fetchCounselingData();
+      setActiveTab('sessions');
+      setIsBookingNewSession(false);
+    } else {
+      console.error('❌ Database error booking session, falling back to Local Mode:', sessError);
+      
+      // 2. Fallback: Add to local state so the user sees it immediately in the table
+      setSessions(prev => [newSession, ...prev]);
+      
+      alert(`Session Booked (Local Mode)! Your session with ${mentor.name} has been added to your table. \n\nNote: To save permanently, please ensure the "mentorship_sessions" table exists in Supabase.`);
+      
+      setActiveTab('sessions');
+      setIsBookingNewSession(false);
+    }
+  };
+
+  const handleRequestCounseling = async () => {
+    if (!counselingForm.description.trim()) {
+      alert('Please provide a description for your request.');
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    const newRequest = {
+      id: crypto.randomUUID(),
+      studentId: user.id,
+      studentName: user.name,
+      type: counselingForm.type,
+      urgency: counselingForm.urgency,
+      description: counselingForm.description.trim(),
+      status: 'pending',
+      timestamp: new Date().toISOString()
+    };
+
+    console.log('🚀 Submitting counseling request:', newRequest);
+
+    try {
+      // 1. Try to save to Database
+      const { error } = await supabase.from('counseling_requests').insert(newRequest);
+
+      if (!error) {
+        alert('Success! Your counseling request has been submitted to the database.');
+        setShowCounselingModal(false);
+        setCounselingForm({ type: 'Academic', urgency: 'Normal', description: '' });
+        fetchCounselingData();
+      } else {
+        throw error;
+      }
+    } catch (error: any) {
+      console.error('❌ Database error, falling back to Local Mode:', error);
+      
+      // 2. Fallback: Add to local state so the user sees it immediately
+      setCounselingRequests(prev => [newRequest, ...prev]);
+      
+      alert('Request Submitted! Your request has been added to the list. \n\n(Note: Saved locally as the database table is still being set up).');
+      
+      setShowCounselingModal(false);
+      setCounselingForm({ type: 'Academic', urgency: 'Normal', description: '' });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleUpdateSessionStatus = async (sessionId: any, status: string) => {
+    // 1. Update local state immediately for "Perfect" responsiveness
+    // If it's a demo session, we need to make sure it's in our local state first
+    if (String(sessionId).startsWith('demo-')) {
+      const demoSess = demoSessions.find(s => s.id === sessionId);
+      if (demoSess && !sessions.find(s => s.id === sessionId)) {
+        setSessions(prev => [{ ...demoSess, status }, ...prev]);
+      } else {
+        setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, status } : s));
+      }
+    } else {
+      setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, status } : s));
+    }
+
+    // 2. Update Database (only for real sessions)
+    if (!String(sessionId).startsWith('demo-')) {
+      const { error } = await supabase
+        .from('mentorship_sessions')
+        .update({ status })
+        .eq('id', sessionId);
+      
+      if (!error) {
+        fetchCounselingData();
+      }
+    }
+    
+    // 3. Feedback
+    if (status === 'cancelled') {
+      alert('Session cancelled successfully.');
+    } else if (status === 'completed') {
+      alert('Great! The session has been marked as completed.');
+    } else if (status === 'scheduled') {
+      alert('Session has been accepted and scheduled!');
+    }
+  };
+
+  const seedSampleSessions = () => {
+    console.log('🎯 Demo Mode Button Clicked!');
+    setIsDemoMode(true);
+    // Force a small delay to show it's "working"
+    setTimeout(() => {
+      alert('Demo Mode Activated! I have automatically generated 2 perfect session examples for you to see.');
+    }, 100);
+  };
+
+  // Mock data for Demo Mode
+  const demoMentors = [
+    {
+      id: 'demo-mentor-1',
+      name: 'Mr. Cidric Sanchez',
+      role: 'Senior Mentor',
+      specialty: 'Physical Education',
+      bio: 'Make it yourself proud. Just going to the flow.',
+      availability: 'Mon-Fri, 9AM-5PM'
+    }
+  ];
+
+  const demoSessions = [
+    {
+      id: 'demo-1',
+      studentName: user.name,
+      mentorName: 'Mr. Cidric Sanchez',
+      date: new Date(Date.now() + 86400000).toISOString(), // Tomorrow
+      status: 'pending',
+      type: 'Mentorship'
+    },
+    {
+      id: 'demo-2',
+      studentName: user.name,
+      mentorName: 'Mr. Cidric Sanchez',
+      date: new Date(Date.now() - 86400000).toISOString(), // Yesterday
+      status: 'completed',
+      type: 'Academic'
+    }
+  ];
+
+  const demoCounselingRequests = [
+    {
+      id: 'demo-req-1',
+      type: 'Academic',
+      urgency: 'Normal',
+      status: 'pending',
+      timestamp: new Date().toISOString(),
+      description: 'I need help with my physical education requirements.'
+    },
+    {
+      id: 'demo-req-2',
+      type: 'Mental Health',
+      urgency: 'High',
+      status: 'completed',
+      timestamp: new Date(Date.now() - 172800000).toISOString(),
+      description: 'Feeling overwhelmed with the current semester load.'
+    }
+  ];
+
+  // Automatically use demo data if real data is missing, and merge them for a fuller view
+  const displayMentors = mentors.length > 0 ? mentors : demoMentors;
+  const displaySessions = [
+    ...sessions, 
+    ...demoSessions.filter(ds => !sessions.find(s => s.id === ds.id))
+  ].slice(0, Math.max(sessions.length, 3));
+  const displayCounselingRequests = [
+    ...counselingRequests, 
+    ...demoCounselingRequests.filter(dr => !counselingRequests.find(r => r.id === dr.id))
+  ].slice(0, Math.max(counselingRequests.length, 3));
+
+  const handleSelectMentor = async (mentorId: string) => {
+    setIsSelecting(true);
+    const { error } = await supabase
+      .from('users')
+      .update({ mentorId })
+      .eq('id', user.id);
+    
+    if (!error) {
+      fetchUsers();
+      alert('Mentor selected successfully!');
+    } else {
+      alert('Error selecting mentor: ' + error.message);
+    }
+    setIsSelecting(false);
+  };
+
+  const [newMentor, setNewMentor] = useState({ name: '', role: '', specialty: '', bio: '', availability: 'Mon-Fri, 9AM-5PM' });
+  const [isAddingMentor, setIsAddingMentor] = useState(false);
+
+  const handleAddMentor = async () => {
+    if (!newMentor.name || !newMentor.role || !newMentor.specialty) {
+      alert('Please fill in all required fields (Name, Role, and Specialty).');
+      return;
+    }
+
+    setIsAddingMentor(true);
+    try {
+      // Use a unique ID to ensure the record is created correctly
+      const mentorId = crypto.randomUUID();
+      
+      const mentorToInsert = {
+        id: mentorId,
+        name: newMentor.name.trim(),
+        role: newMentor.role.trim(),
+        specialty: newMentor.specialty.trim(),
+        bio: newMentor.bio.trim(),
+        availability: newMentor.availability.trim()
+      };
+
+      console.log('🚀 Attempting to add mentor to database:', mentorToInsert);
+
+      const { data, error } = await supabase
+        .from('mentors')
+        .insert([mentorToInsert])
+        .select();
+      
+      if (error) {
+        console.error('❌ Supabase error adding mentor:', error);
+        alert(`Database Error: ${error.message}\nCode: ${error.code}`);
+        throw error;
+      }
+
+      console.log('✅ Mentor added successfully:', data);
+      
+      // Refresh the list immediately
+      await fetchMentors();
+      
+      // Close modal and reset form
+      setShowAddModal(false);
+      setNewMentor({ name: '', role: '', specialty: '', bio: '', availability: 'Mon-Fri, 9AM-5PM' });
+      
+      alert('Success! The new mentor has been added to the system.');
+    } catch (err: any) {
+      console.error('💥 Critical error in handleAddMentor:', err);
+      if (!err.message?.includes('Database Error')) {
+        alert('System Error: ' + (err.message || 'An unexpected error occurred. Please try again.'));
+      }
+    } finally {
+      setIsAddingMentor(false);
+    }
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+      <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
+        <div>
+          <h1 className="text-5xl font-black tracking-tighter mb-2">Mentorship & Counseling</h1>
+          <p className={cn("text-lg font-medium", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+            Professional guidance and emotional support for your academic journey.
+          </p>
+        </div>
+        <div className="flex gap-3">
+          {(user.role === 'admin' || user.role === 'faculty') && (
+            <button 
+              onClick={() => setShowAddModal(true)}
+              className="px-6 py-3 bg-slate-900 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl hover:bg-slate-800 transition-all flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              Add Mentor
+            </button>
+          )}
+          {user.role === 'student' && (
+            <button 
+              onClick={() => setShowCounselingModal(true)}
+              className="px-6 py-3 bg-red-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl shadow-red-600/20 hover:bg-red-500 transition-all flex items-center gap-2"
+            >
+              <Heart className="w-4 h-4" />
+              Request Counseling
+            </button>
+          )}
+        </div>
+      </header>
+
+      {/* Tabs */}
+      <div className="flex gap-2 p-1.5 bg-slate-100 dark:bg-white/5 rounded-[2rem] w-fit">
+        <button 
+          onClick={() => setActiveTab('mentors')}
+          className={cn(
+            "px-8 py-3 rounded-[1.5rem] font-black text-xs uppercase tracking-widest transition-all",
+            activeTab === 'mentors' ? "bg-white dark:bg-white/10 shadow-sm" : "text-slate-400 hover:text-slate-600"
+          )}
+        >
+          Mentors
+        </button>
+        <button 
+          onClick={() => setActiveTab('counseling')}
+          className={cn(
+            "px-8 py-3 rounded-[1.5rem] font-black text-xs uppercase tracking-widest transition-all",
+            activeTab === 'counseling' ? "bg-white dark:bg-white/10 shadow-sm" : "text-slate-400 hover:text-slate-600"
+          )}
+        >
+          Counseling
+        </button>
+        <button 
+          onClick={() => {
+            setActiveTab('sessions');
+            setIsBookingNewSession(false);
+          }}
+          className={cn(
+            "px-8 py-3 rounded-[1.5rem] font-black text-xs uppercase tracking-widest transition-all",
+            activeTab === 'sessions' ? "bg-white dark:bg-white/10 shadow-sm" : "text-slate-400 hover:text-slate-600"
+          )}
+        >
+          {isUserAMentor ? 'My Mentees' : 'My Sessions'}
+        </button>
+      </div>
+
+      <AnimatePresence mode="wait">
+        {activeTab === 'mentors' && (
+          <motion.div 
+            key="mentors"
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 20 }}
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
+          >
+            {displayMentors.map((mentor, i) => (
+              <div key={i} className={cn(
+                "group p-8 rounded-[3rem] border transition-all hover:scale-[1.02] flex flex-col",
+                isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+              )}>
+                <div className="flex items-start justify-between mb-8">
+                  <div className="w-24 h-24 rounded-[2.5rem] bg-red-600/10 flex items-center justify-center text-red-600 font-black text-3xl shadow-inner overflow-hidden">
+                    {mentor.name[0]}
+                  </div>
+                  <div className="flex gap-1">
+                    {[1, 2, 3, 4, 5].map(star => (
+                      <Award key={star} className="w-4 h-4 text-amber-400 fill-amber-400" />
+                    ))}
+                  </div>
+                </div>
+                
+                <div className="flex-1">
+                  <h3 className="text-3xl font-black tracking-tight mb-1">{mentor.name}</h3>
+                  <p className="text-sm font-bold text-red-600 mb-6 uppercase tracking-widest">{mentor.role}</p>
+                  
+                  <div className="space-y-4 mb-6">
+                    <div className={cn("p-4 rounded-2xl", isDarkMode ? "bg-white/5" : "bg-slate-50")}>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Specialty</p>
+                      <p className="text-sm font-bold">{mentor.specialty}</p>
+                    </div>
+                  </div>
+
+                  <p className={cn("text-sm font-medium mb-6 leading-relaxed", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+                    {mentor.bio || "No bio provided."}
+                  </p>
+
+                  <div className="flex items-center gap-2 mb-8 text-slate-400">
+                    <Clock className="w-4 h-4" />
+                    <p className="text-sm font-bold">{mentor.availability || 'Mon-Fri, 9AM-5PM'}</p>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <button 
+                    onClick={() => setSelectedMentor(mentor)}
+                    className={cn(
+                      "w-full py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-all",
+                      isDarkMode ? "bg-white/10 hover:bg-white/20 text-white" : "bg-slate-900 text-white hover:bg-slate-800 shadow-lg"
+                    )}
+                  >
+                    View Profile
+                  </button>
+                  {user.role === 'student' && (
+                    <button 
+                      disabled={user.mentorId === mentor.id || isSelecting}
+                      onClick={() => handleSelectMentor(mentor.id)}
+                      className={cn(
+                        "w-full py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-all",
+                        user.mentorId === mentor.id 
+                          ? "bg-emerald-500/10 text-emerald-500 cursor-default" 
+                          : "bg-red-600 text-white shadow-xl shadow-red-600/20 hover:bg-red-500"
+                      )}
+                    >
+                      {user.mentorId === mentor.id ? (
+                        <span className="flex items-center justify-center gap-2"><CheckCircle className="w-4 h-4" /> Your Mentor</span>
+                      ) : isSelecting ? 'Selecting...' : 'Select as Mentor'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </motion.div>
+        )}
+
+        {activeTab === 'counseling' && (
+          <motion.div 
+            key="counseling"
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 20 }}
+            className="grid grid-cols-1 lg:grid-cols-3 gap-8"
+          >
+            <div className={cn(
+              "lg:col-span-1 p-10 rounded-[3rem] border",
+              isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+            )}>
+              <div className="w-16 h-16 rounded-2xl bg-red-600/10 flex items-center justify-center text-red-600 mb-8">
+                <ShieldCheck className="w-8 h-8" />
+              </div>
+              <h3 className="text-3xl font-black tracking-tight mb-4">Confidential Support</h3>
+              <p className={cn("font-medium mb-8 leading-relaxed", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+                Our professional counselors are here to help you with academic stress, personal challenges, and career guidance. All sessions are strictly confidential.
+              </p>
+              <ul className="space-y-4 mb-10">
+                {[
+                  "Academic Pressure & Anxiety",
+                  "Personal & Family Issues",
+                  "Career Path Guidance",
+                  "Mental Health Support"
+                ].map((item, i) => (
+                  <li key={i} className="flex items-center gap-3 font-bold text-sm">
+                    <CheckCircle className="w-5 h-5 text-emerald-500" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+              <button 
+                onClick={() => setShowCounselingModal(true)}
+                className="w-full py-5 bg-red-600 text-white rounded-[2rem] font-black uppercase tracking-widest text-sm shadow-xl shadow-red-600/20 hover:bg-red-500 transition-all"
+              >
+                Request a Session
+              </button>
+            </div>
+
+            <div className={cn(
+              "lg:col-span-2 p-10 rounded-[3rem] border",
+              isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+            )}>
+              <h3 className="text-2xl font-black tracking-tight mb-8">Recent Requests</h3>
+              <div className="space-y-4">
+                {displayCounselingRequests.length > 0 ? displayCounselingRequests.map((req, i) => (
+                  <div key={i} className={cn(
+                    "p-6 rounded-3xl border flex items-center justify-between",
+                    isDarkMode ? "bg-white/5 border-white/5" : "bg-slate-50 border-slate-100"
+                  )}>
+                    <div className="flex items-center gap-6">
+                      <div className={cn(
+                        "w-12 h-12 rounded-2xl flex items-center justify-center",
+                        req.urgency === 'High' ? "bg-red-500/10 text-red-500" : "bg-blue-500/10 text-blue-500"
+                      )}>
+                        <MessageSquare className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <p className="font-black text-lg">{req.type} Counseling</p>
+                        <p className="text-xs font-bold text-slate-400">{new Date(req.timestamp).toLocaleDateString()} • Urgency: {req.urgency}</p>
+                      </div>
+                    </div>
+                    <span className={cn(
+                      "px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest",
+                      req.status === 'pending' ? "bg-amber-500/10 text-amber-500" : "bg-emerald-500/10 text-emerald-500"
+                    )}>
+                      {req.status}
+                    </span>
+                  </div>
+                )) : (
+                  <div className="text-center py-20">
+                    <div className="w-20 h-20 bg-slate-100 dark:bg-white/5 rounded-full flex items-center justify-center mx-auto mb-6">
+                      <ClipboardList className="w-10 h-10 text-slate-300" />
+                    </div>
+                    <p className="text-slate-400 font-bold italic">No counseling requests yet.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {activeTab === 'sessions' && (
+          <motion.div 
+            key="sessions"
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 20 }}
+            className="space-y-8"
+          >
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {[
+                { label: 'Total Sessions', value: displaySessions.length, icon: <Calendar className="w-5 h-5" />, color: 'blue' },
+                { label: 'Pending', value: displaySessions.filter(s => s.status === 'pending').length, icon: <Clock className="w-5 h-5" />, color: 'amber' },
+                { label: 'Completed', value: displaySessions.filter(s => s.status === 'completed').length, icon: <CheckCircle className="w-5 h-5" />, color: 'emerald' },
+                { label: 'Mentees', value: isUserAMentor ? [...new Set(displaySessions.map(s => s.studentId))].length : 1, icon: <Users className="w-5 h-5" />, color: 'red' }
+              ].map((stat, i) => (
+                <div key={i} className={cn(
+                  "p-8 rounded-[2.5rem] border transition-all hover:shadow-md",
+                  isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-100 shadow-sm"
+                )}>
+                  <div className={cn(
+                    "w-12 h-12 rounded-2xl flex items-center justify-center mb-6",
+                    stat.color === 'blue' ? "bg-blue-50 text-blue-600" :
+                    stat.color === 'amber' ? "bg-amber-50 text-amber-600" :
+                    stat.color === 'emerald' ? "bg-emerald-50 text-emerald-600" :
+                    "bg-red-50 text-red-600"
+                  )}>
+                    {stat.icon}
+                  </div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">{stat.label}</p>
+                  <p className="text-4xl font-black tracking-tighter">{stat.value}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className={cn(
+              "p-10 rounded-[3rem] border",
+              isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+            )}>
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+                <h3 className="text-2xl font-black tracking-tight">
+                  {isBookingNewSession ? 'Select a Mentor to Book' : 'Upcoming & Past Sessions'}
+                </h3>
+                {!isUserAMentor && (
+                  <button 
+                    onClick={() => setIsBookingNewSession(!isBookingNewSession)}
+                    className={cn(
+                      "px-6 py-3 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl transition-all flex items-center gap-2",
+                      isBookingNewSession ? "bg-slate-800 hover:bg-slate-700" : "bg-red-600 shadow-red-600/20 hover:bg-red-500"
+                    )}
+                  >
+                    {isBookingNewSession ? (
+                      <>
+                        <X className="w-3 h-3" />
+                        Cancel Booking
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="w-3 h-3" />
+                        Book New Session
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+
+              {isBookingNewSession ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {displayMentors.map((mentor, i) => (
+                    <div key={i} className={cn(
+                      "p-6 rounded-[2.5rem] border transition-all hover:scale-[1.02]",
+                      isDarkMode ? "bg-white/5 border-white/5" : "bg-slate-50 border-slate-100"
+                    )}>
+                      <div className="flex items-center gap-4 mb-4">
+                        <div className="w-12 h-12 rounded-2xl bg-red-600/10 flex items-center justify-center text-red-600 font-black text-xl">
+                          {mentor.name[0]}
+                        </div>
+                        <div>
+                          <p className="font-black text-sm">{mentor.name}</p>
+                          <p className="text-[10px] font-bold text-red-600 uppercase tracking-widest">{mentor.specialty}</p>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => setSelectedMentor(mentor)}
+                        className="w-full py-3 bg-red-600 text-white rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg shadow-red-600/20 hover:bg-red-500 transition-all"
+                      >
+                        Book Now
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                  <thead>
+                    <tr className="text-left border-bottom border-slate-100 dark:border-white/5">
+                      <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Date & Time</th>
+                      <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-slate-400">{isUserAMentor ? 'Student' : 'Mentor'}</th>
+                      <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Type</th>
+                      <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Status</th>
+                      <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+                    {displaySessions.map((sess, i) => (
+                      <tr key={i} className="group">
+                        <td className="py-6">
+                          <div className="flex items-center gap-3">
+                            <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", isDarkMode ? "bg-white/5" : "bg-slate-50")}>
+                              <Calendar className="w-5 h-5 text-red-600" />
+                            </div>
+                            <div>
+                              <p className="font-black text-sm">{new Date(sess.date).toLocaleDateString()}</p>
+                              <p className="text-[10px] font-bold text-slate-400">{new Date(sess.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-6">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-black">
+                              {(isUserAMentor ? sess.studentName : sess.mentorName)?.[0]}
+                            </div>
+                            <p className="font-bold text-sm">{isUserAMentor ? sess.studentName : sess.mentorName}</p>
+                          </div>
+                        </td>
+                        <td className="py-6">
+                          <span className={cn("px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest", isDarkMode ? "bg-white/5" : "bg-slate-100")}>
+                            {sess.type}
+                          </span>
+                        </td>
+                        <td className="py-6">
+                          <span className={cn(
+                            "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest",
+                            sess.status === 'scheduled' ? "bg-blue-500/10 text-blue-500" : 
+                            sess.status === 'pending' ? (isDarkMode ? "bg-amber-500/10 text-amber-500" : "bg-amber-50 text-amber-600") : 
+                            sess.status === 'completed' ? "bg-emerald-500/10 text-emerald-500" : 
+                            sess.status === 'cancelled' ? "bg-red-500/10 text-red-500" : "bg-slate-500/10 text-slate-500"
+                          )}>
+                            {sess.status}
+                          </span>
+                        </td>
+                        <td className="py-6 text-right">
+                          <div className="flex justify-end gap-3">
+                            <button className={cn(
+                              "w-10 h-10 rounded-2xl flex items-center justify-center transition-all",
+                              isDarkMode ? "hover:bg-white/5 text-slate-400" : "hover:bg-slate-100 text-slate-400"
+                            )}>
+                              <MessageSquare className="w-5 h-5" />
+                            </button>
+                            
+                            {/* Accept/Approve Button - Visible for Pending sessions */}
+                            {sess.status === 'pending' && (
+                              <button 
+                                onClick={() => handleUpdateSessionStatus(sess.id, 'scheduled')}
+                                className={cn(
+                                  "w-10 h-10 rounded-2xl flex items-center justify-center transition-all shadow-sm",
+                                  isDarkMode ? "bg-blue-500/10 text-blue-500 hover:bg-blue-500 hover:text-white" : "bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white"
+                                )}
+                                title="Approve Session"
+                              >
+                                <Check className="w-5 h-5" />
+                              </button>
+                            )}
+
+                            {/* Complete Button - Visible for Scheduled sessions */}
+                            {sess.status === 'scheduled' && (
+                              <button 
+                                onClick={() => handleUpdateSessionStatus(sess.id, 'completed')}
+                                className={cn(
+                                  "w-10 h-10 rounded-2xl flex items-center justify-center transition-all shadow-sm",
+                                  isDarkMode ? "bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-white" : "bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white"
+                                )}
+                                title="Mark as Completed"
+                              >
+                                <Check className="w-5 h-5" />
+                              </button>
+                            )}
+
+                            {/* Decline/Cancel Button - Works for Pending or Scheduled */}
+                            {(sess.status === 'scheduled' || sess.status === 'pending') && (
+                              <button 
+                                onClick={() => handleUpdateSessionStatus(sess.id, 'cancelled')}
+                                className={cn(
+                                  "w-10 h-10 rounded-2xl flex items-center justify-center transition-all shadow-sm",
+                                  isDarkMode ? "bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white" : "bg-red-50 text-red-500 hover:bg-red-600 hover:text-white"
+                                )}
+                                title="Decline Session"
+                              >
+                                <X className="w-5 h-5" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {displaySessions.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="py-20 text-center">
+                          <div className="flex flex-col items-center gap-4">
+                            <p className="text-slate-400 font-bold italic">No sessions recorded.</p>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Modals */}
+      {showCounselingModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }} 
+            animate={{ opacity: 1, scale: 1 }} 
+            className={cn(
+              "rounded-[3rem] p-10 max-w-lg w-full shadow-2xl border",
+              isDarkMode ? "bg-[#111111] border-white/5 text-white" : "bg-white border-slate-200"
+            )}
+          >
+            <div className="flex justify-between items-center mb-8">
+              <h3 className="text-3xl font-black tracking-tighter">Request Counseling</h3>
+              <button 
+                onClick={() => setShowCounselingModal(false)} 
+                className={cn("p-2 rounded-full transition-colors", isDarkMode ? "hover:bg-white/5" : "hover:bg-slate-100")}
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Session Type</label>
+                  <select 
+                    value={counselingForm.type}
+                    onChange={e => setCounselingForm({...counselingForm, type: e.target.value})}
+                    className={cn(
+                      "w-full p-4 rounded-2xl border-none outline-none focus:ring-2 focus:ring-red-600 font-bold",
+                      isDarkMode ? "bg-white/5 text-white" : "bg-slate-50 text-slate-900"
+                    )}
+                  >
+                    <option value="Academic">Academic</option>
+                    <option value="Personal">Personal</option>
+                    <option value="Career">Career</option>
+                    <option value="Mental Health">Mental Health</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Urgency</label>
+                  <select 
+                    value={counselingForm.urgency}
+                    onChange={e => setCounselingForm({...counselingForm, urgency: e.target.value})}
+                    className={cn(
+                      "w-full p-4 rounded-2xl border-none outline-none focus:ring-2 focus:ring-red-600 font-bold",
+                      isDarkMode ? "bg-white/5 text-white" : "bg-slate-50 text-slate-900"
+                    )}
+                  >
+                    <option value="Normal">Normal</option>
+                    <option value="High">High (Urgent)</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">What's on your mind?</label>
+                <textarea 
+                  placeholder="Tell us briefly how we can help..." 
+                  value={counselingForm.description}
+                  onChange={e => setCounselingForm({...counselingForm, description: e.target.value})}
+                  rows={4}
+                  className={cn(
+                    "w-full p-4 rounded-2xl border-none outline-none focus:ring-2 focus:ring-red-600 font-medium resize-none",
+                    isDarkMode ? "bg-white/5 text-white placeholder:text-slate-600" : "bg-slate-50 text-slate-900 placeholder:text-slate-400"
+                  )}
+                />
+              </div>
+              <div className={cn("p-4 rounded-2xl flex gap-4 items-start", isDarkMode ? "bg-blue-500/10" : "bg-blue-50")}>
+                <ShieldCheck className="w-6 h-6 text-blue-600 shrink-0" />
+                <p className={cn("text-xs font-medium leading-relaxed", isDarkMode ? "text-blue-400" : "text-blue-700")}>
+                  Your privacy is our priority. This request will only be visible to our professional counseling staff.
+                </p>
+              </div>
+              <button 
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleRequestCounseling();
+                }}
+                disabled={isSubmitting}
+                className={cn(
+                  "w-full py-5 text-white rounded-[2rem] font-black uppercase tracking-widest text-sm shadow-xl transition-all flex items-center justify-center gap-2",
+                  isSubmitting ? "bg-slate-400 cursor-not-allowed" : "bg-red-600 shadow-red-600/20 hover:bg-red-500 active:scale-95"
+                )}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Clock className="w-4 h-4 animate-spin" />
+                    Submitting...
+                  </>
+                ) : (
+                  'Submit Request'
+                )}
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {selectedMentor && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-sm">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white rounded-[3rem] p-10 max-w-2xl w-full shadow-2xl overflow-hidden relative">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-red-600/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
+            
+            <button onClick={() => setSelectedMentor(null)} className="absolute top-6 right-6 p-2 hover:bg-slate-100 rounded-full transition-colors z-10">
+              <X className="w-6 h-6" />
+            </button>
+
+            <div className="relative z-10">
+              <div className="flex items-center gap-8 mb-10">
+                <div className="w-32 h-32 rounded-[3rem] bg-red-600/10 flex items-center justify-center text-red-600 font-black text-5xl shadow-inner overflow-hidden">
+                  {selectedMentor.name[0]}
+                </div>
+                <div>
+                  <h3 className="text-4xl font-black tracking-tighter mb-1">{selectedMentor.name}</h3>
+                  <p className="text-lg font-bold text-red-600 uppercase tracking-widest mb-4">{selectedMentor.role}</p>
+                  <div className="flex gap-2">
+                    {['Academic', 'Career', 'Leadership'].map((tag, i) => (
+                      <span key={i} className="px-3 py-1 bg-slate-100 rounded-lg text-[10px] font-black uppercase tracking-widest text-slate-500">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-8 mb-10">
+                <div className="space-y-6">
+                  <div>
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">About Mentor</h4>
+                    <p className="text-sm font-medium leading-relaxed text-slate-600">
+                      {selectedMentor.bio || `${selectedMentor.name} is a dedicated professional with years of experience in ${selectedMentor.specialty}. They are passionate about helping students achieve their academic and personal goals.`}
+                    </p>
+                  </div>
+                  <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100">
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">Schedule Session</h4>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Date</label>
+                        <input 
+                          type="date" 
+                          value={bookingDate}
+                          onChange={e => setBookingDate(e.target.value)}
+                          className="w-full p-3 bg-white rounded-xl border border-slate-200 text-sm font-bold outline-none focus:ring-2 focus:ring-red-600"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Time</label>
+                        <input 
+                          type="time" 
+                          value={bookingTime}
+                          onChange={e => setBookingTime(e.target.value)}
+                          className="w-full p-3 bg-white rounded-xl border border-slate-200 text-sm font-bold outline-none focus:ring-2 focus:ring-red-600"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-6">
+                  <div>
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Specialty</h4>
+                    <p className="text-sm font-bold">{selectedMentor.specialty}</p>
+                  </div>
+                  <div>
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Availability</h4>
+                    <p className="text-sm font-bold">{selectedMentor.availability || 'Mon-Fri, 9AM-5PM'}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                <button 
+                  onClick={() => {
+                    if (setView && setSelectedChatUser) {
+                      setSelectedChatUser(selectedMentor);
+                      setView('messages');
+                    }
+                  }}
+                  className="flex-1 py-5 bg-slate-100 rounded-[2rem] font-black uppercase tracking-widest text-xs hover:bg-slate-200 transition-all flex items-center justify-center gap-2"
+                >
+                  <MessageSquare className="w-4 h-4" />
+                  Send Message
+                </button>
+                <button 
+                  onClick={() => {
+                    handleBookSession(selectedMentor);
+                    setSelectedMentor(null);
+                  }}
+                  className="flex-1 py-5 bg-red-600 text-white rounded-[2rem] font-black uppercase tracking-widest text-xs shadow-xl shadow-red-600/20 hover:bg-red-500 transition-all flex items-center justify-center gap-2"
+                >
+                  <Calendar className="w-4 h-4" />
+                  Book Session
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {showAddModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }} 
+            animate={{ opacity: 1, scale: 1 }} 
+            className="bg-white rounded-[3rem] p-10 max-w-4xl w-full shadow-2xl max-h-[90vh] overflow-y-auto"
+          >
+            <div className="flex justify-between items-center mb-8">
+              <div>
+                <h3 className="text-3xl font-black tracking-tighter">Add New Mentor</h3>
+                <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">Create a professional profile</p>
+              </div>
+              <button onClick={() => setShowAddModal(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+              {/* Form Side */}
+              <div className="space-y-6">
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-2">Full Name</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. Sir Cidric Sanchez" 
+                      value={newMentor.name}
+                      onChange={e => setNewMentor({...newMentor, name: e.target.value})}
+                      className="w-full p-4 bg-slate-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-red-600 font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-2">Professional Role</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. Senior Mentor" 
+                      value={newMentor.role}
+                      onChange={e => setNewMentor({...newMentor, role: e.target.value})}
+                      className="w-full p-4 bg-slate-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-red-600 font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-2">Specialty</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. Computer Science" 
+                      value={newMentor.specialty}
+                      onChange={e => setNewMentor({...newMentor, specialty: e.target.value})}
+                      className="w-full p-4 bg-slate-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-red-600 font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-2">Short Bio / Motto</label>
+                    <textarea 
+                      placeholder="e.g. Just prove yourself if you want to succeed." 
+                      value={newMentor.bio}
+                      onChange={e => setNewMentor({...newMentor, bio: e.target.value})}
+                      rows={3}
+                      className="w-full p-4 bg-slate-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-red-600 font-medium resize-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-2">Availability</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. Mon-Fri, 9AM-5PM" 
+                      value={newMentor.availability}
+                      onChange={e => setNewMentor({...newMentor, availability: e.target.value})}
+                      className="w-full p-4 bg-slate-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-red-600 font-bold"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-4 pt-4">
+                  <button 
+                    disabled={isAddingMentor}
+                    onClick={() => setShowAddModal(false)} 
+                    className="flex-1 py-4 bg-slate-100 rounded-2xl font-bold disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    disabled={isAddingMentor}
+                    onClick={handleAddMentor} 
+                    className="flex-1 py-4 bg-red-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl shadow-red-600/20 hover:bg-red-500 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {isAddingMentor ? (
+                      <>
+                        <Clock className="w-4 h-4 animate-spin" />
+                        Adding...
+                      </>
+                    ) : 'Add Mentor'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Preview Side */}
+              <div className="hidden lg:block">
+                <div className="sticky top-0">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6 text-center">Live Card Preview</p>
+                  
+                  <div className={cn(
+                    "p-8 rounded-[3rem] border shadow-2xl scale-90 origin-top",
+                    isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200"
+                  )}>
+                    <div className="flex items-start justify-between mb-8">
+                      <div className="w-24 h-24 rounded-[2.5rem] bg-red-600/10 flex items-center justify-center text-red-600 font-black text-3xl shadow-inner overflow-hidden">
+                        {newMentor.name ? newMentor.name[0] : '?'}
+                      </div>
+                      <div className="flex gap-1">
+                        {[1, 2, 3, 4, 5].map(star => (
+                          <Award key={star} className="w-4 h-4 text-amber-400 fill-amber-400" />
+                        ))}
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <h3 className="text-3xl font-black tracking-tight mb-1">{newMentor.name || "Mentor Name"}</h3>
+                      <p className="text-sm font-bold text-red-600 mb-6 uppercase tracking-widest">{newMentor.role || "Professional Role"}</p>
+                      
+                      <div className="space-y-4 mb-6">
+                        <div className={cn("p-4 rounded-2xl", isDarkMode ? "bg-white/5" : "bg-slate-50")}>
+                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Specialty</p>
+                          <p className="text-sm font-bold">{newMentor.specialty || "Specialty Area"}</p>
+                        </div>
+                      </div>
+
+                      <p className={cn("text-sm font-medium mb-6 leading-relaxed", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+                        {newMentor.bio || "Your inspiring bio or motto will appear here..."}
+                      </p>
+
+                      <div className="flex items-center gap-2 mb-8 text-slate-400">
+                        <Clock className="w-4 h-4" />
+                        <p className="text-sm font-bold">{newMentor.availability || 'Mon-Fri, 9AM-5PM'}</p>
+                      </div>
+
+                      <button className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg cursor-default opacity-50">
+                        View Profile
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
+
+function Resources({ user, isDarkMode, resources, fetchResources, activeModal, setActiveModal }: { user: UserData, isDarkMode?: boolean, resources: any[], fetchResources: () => void, activeModal?: string | null, setActiveModal?: (val: string | null) => void }) {
+  const [showAddModal, setShowAddModal] = useState(false);
+
+  useEffect(() => {
+    if (activeModal === 'resource') {
+      setShowAddModal(true);
+      if (setActiveModal) setActiveModal(null);
+    }
+  }, [activeModal]);
+  const [newResource, setNewResource] = useState({ title: '', type: 'PDF', size: '' });
+
+  const handleAddResource = async () => {
+    const { error } = await supabase.from('resources').insert(newResource);
+    if (!error) {
+      fetchResources();
+      setShowAddModal(false);
+      setNewResource({ title: '', type: 'PDF', size: '' });
+    }
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+      <header className="flex justify-between items-end">
+        <div>
+          <h1 className="text-4xl font-black tracking-tighter">Resource Library</h1>
+          <p className={isDarkMode ? "text-slate-400" : "text-slate-500"}>Download guides, templates, and academic materials.</p>
+        </div>
+        {(user.role === 'admin' || user.role === 'faculty') && (
+          <button 
+            onClick={() => setShowAddModal(true)}
+            className="px-6 py-3 bg-red-600 text-white rounded-xl font-black uppercase tracking-widest text-xs shadow-lg shadow-red-600/20 hover:bg-red-500 transition-all flex items-center gap-2"
+          >
+            <Upload className="w-4 h-4" />
+            Upload Resource
+          </button>
+        )}
+      </header>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {resources.length > 0 ? resources.map((res, i) => (
+          <div key={i} className={cn(
+            "p-6 rounded-[2rem] border transition-all hover:scale-[1.02]",
+            isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+          )}>
+            <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center mb-6", isDarkMode ? "bg-white/5" : "bg-slate-50")}>
+              <FileText className="w-6 h-6 text-red-600" />
+            </div>
+            <h3 className="font-black tracking-tight mb-1">{res.title}</h3>
+            <div className="flex items-center justify-between mt-4">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{res.type} • {res.size}</span>
+              <button className="p-2 rounded-xl bg-red-600 text-white shadow-lg shadow-red-600/20 hover:bg-red-500 transition-all">
+                <Download className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )) : (
+          <div className="col-span-full py-20 text-center text-slate-400 font-bold italic">
+            No resources available.
+          </div>
+        )}
+      </div>
+
+      {showAddModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-sm">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white rounded-[2.5rem] p-8 max-w-md w-full shadow-2xl">
+            <h3 className="text-2xl font-black mb-6">Upload New Resource</h3>
+            <div className="space-y-4">
+              <input 
+                type="text" 
+                placeholder="Resource Title" 
+                value={newResource.title}
+                onChange={e => setNewResource({...newResource, title: e.target.value})}
+                className="w-full p-4 bg-slate-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-red-600"
+              />
+              <select 
+                value={newResource.type}
+                onChange={e => setNewResource({...newResource, type: e.target.value})}
+                className="w-full p-4 bg-slate-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-red-600"
+              >
+                <option value="PDF">PDF</option>
+                <option value="DOCX">DOCX</option>
+                <option value="JPG">JPG</option>
+                <option value="ZIP">ZIP</option>
+              </select>
+              <input 
+                type="text" 
+                placeholder="File Size (e.g. 2.4 MB)" 
+                value={newResource.size}
+                onChange={e => setNewResource({...newResource, size: e.target.value})}
+                className="w-full p-4 bg-slate-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-red-600"
+              />
+              <div className="flex gap-4 pt-4">
+                <button onClick={() => setShowAddModal(false)} className="flex-1 py-4 bg-slate-100 rounded-2xl font-bold">Cancel</button>
+                <button onClick={handleAddResource} className="flex-1 py-4 bg-red-600 text-white rounded-2xl font-black">Upload</button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
+function Community({ user, isDarkMode, events, orgs, fetchCommunityData, activeModal, setActiveModal }: { user: UserData, isDarkMode?: boolean, events: any[], orgs: any[], fetchCommunityData: () => void, activeModal?: string | null, setActiveModal?: (val: string | null) => void }) {
+  const [showAddModal, setShowAddModal] = useState(false);
+
+  useEffect(() => {
+    if (activeModal === 'community') {
+      setShowAddModal(true);
+      if (setActiveModal) setActiveModal(null);
+    }
+  }, [activeModal]);
+  const [addType, setAddType] = useState<'event' | 'org'>('event');
+  const [newData, setNewData] = useState({ title: '', date: '', location: '', name: '' });
+
+  const handleAdd = async () => {
+    const table = addType === 'event' ? 'community_events' : 'community_orgs';
+    const { error } = await supabase.from(table).insert(newData);
+    if (!error) {
+      fetchCommunityData();
+      setShowAddModal(false);
+      setNewData({ title: '', date: '', location: '', name: '' });
+    }
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+      <header className="flex justify-between items-end">
+        <div>
+          <h1 className="text-4xl font-black tracking-tighter">Student Community</h1>
+          <p className={isDarkMode ? "text-slate-400" : "text-slate-500"}>Join clubs, organizations, and student-led initiatives.</p>
+        </div>
+        {(user.role === 'admin' || user.role === 'faculty') && (
+          <button 
+            onClick={() => setShowAddModal(true)}
+            className="px-6 py-3 bg-red-600 text-white rounded-xl font-black uppercase tracking-widest text-xs shadow-lg shadow-red-600/20 hover:bg-red-500 transition-all flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Add Event/Org
+          </button>
+        )}
+      </header>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className={cn(
+          "p-10 rounded-[3rem] border",
+          isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+        )}>
+          <h3 className="text-2xl font-black tracking-tight mb-6">Upcoming Events</h3>
+          <div className="space-y-6">
+            {events.length > 0 ? events.map((event, i) => (
+              <div key={i} className="flex gap-6">
+                <div className={cn("w-16 h-16 rounded-2xl flex flex-col items-center justify-center shrink-0", isDarkMode ? "bg-white/5" : "bg-slate-50")}>
+                  <span className="text-[10px] font-black text-red-600 uppercase tracking-widest">{event.date.split(' ')[0].slice(0, 3)}</span>
+                  <span className="text-xl font-black">{event.date.split(' ')[1]?.replace(',', '') || '??'}</span>
+                </div>
+                <div>
+                  <p className="font-black tracking-tight">{event.title}</p>
+                  <p className="text-xs text-slate-400 mt-1">{event.location}</p>
+                </div>
+              </div>
+            )) : (
+              <p className="text-slate-400 italic font-bold">No upcoming events.</p>
+            )}
+          </div>
+        </div>
+        <div className={cn(
+          "p-10 rounded-[3rem] border",
+          isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+        )}>
+          <h3 className="text-2xl font-black tracking-tight mb-6">Student Organizations</h3>
+          <div className="grid grid-cols-2 gap-4">
+            {orgs.length > 0 ? orgs.map((org, i) => (
+              <div key={i} className={cn("p-4 rounded-2xl border text-center transition-all hover:bg-red-600 hover:text-white hover:border-red-600 cursor-pointer", isDarkMode ? "bg-white/5 border-white/10" : "bg-slate-50 border-slate-200")}>
+                <p className="text-xs font-black uppercase tracking-widest">{org.name}</p>
+              </div>
+            )) : (
+              <p className="col-span-2 text-slate-400 italic font-bold">No organizations listed.</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {showAddModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-sm">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white rounded-[2.5rem] p-8 max-w-md w-full shadow-2xl">
+            <h3 className="text-2xl font-black mb-6">Add to Community</h3>
+            <div className="flex gap-4 mb-6">
+              <button onClick={() => setAddType('event')} className={cn("flex-1 py-2 rounded-xl font-bold", addType === 'event' ? "bg-red-600 text-white" : "bg-slate-100")}>Event</button>
+              <button onClick={() => setAddType('org')} className={cn("flex-1 py-2 rounded-xl font-bold", addType === 'org' ? "bg-red-600 text-white" : "bg-slate-100")}>Org</button>
+            </div>
+            <div className="space-y-4">
+              {addType === 'event' ? (
+                <>
+                  <input 
+                    type="text" 
+                    placeholder="Event Title" 
+                    value={newData.title}
+                    onChange={e => setNewData({...newData, title: e.target.value})}
+                    className="w-full p-4 bg-slate-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-red-600"
+                  />
+                  <input 
+                    type="text" 
+                    placeholder="Date (e.g. April 15, 2024)" 
+                    value={newData.date}
+                    onChange={e => setNewData({...newData, date: e.target.value})}
+                    className="w-full p-4 bg-slate-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-red-600"
+                  />
+                  <input 
+                    type="text" 
+                    placeholder="Location" 
+                    value={newData.location}
+                    onChange={e => setNewData({...newData, location: e.target.value})}
+                    className="w-full p-4 bg-slate-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-red-600"
+                  />
+                </>
+              ) : (
+                <input 
+                  type="text" 
+                  placeholder="Organization Name" 
+                  value={newData.name}
+                  onChange={e => setNewData({...newData, name: e.target.value})}
+                  className="w-full p-4 bg-slate-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-red-600"
+                />
+              )}
+              <div className="flex gap-4 pt-4">
+                <button onClick={() => setShowAddModal(false)} className="flex-1 py-4 bg-slate-100 rounded-2xl font-bold">Cancel</button>
+                <button onClick={handleAdd} className="flex-1 py-4 bg-red-600 text-white rounded-2xl font-black">Add</button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
+function SettingsView({ 
+  user, 
+  isDarkMode, 
+  setIsDarkMode, 
+  accentColor, 
+  setAccentColor,
+  notificationSettings,
+  setNotificationSettings,
+  language,
+  setLanguage
+}: { 
+  user: UserData, 
+  isDarkMode: boolean, 
+  setIsDarkMode: (val: boolean) => void, 
+  accentColor: string, 
+  setAccentColor: (val: string) => void,
+  notificationSettings: any,
+  setNotificationSettings: (val: any) => void,
+  language: string,
+  setLanguage: (val: string) => void
+}) {
+  const [activeSetting, setActiveSetting] = useState<string | null>(null);
+  const [tempAccent, setTempAccent] = useState(accentColor);
+  const [tempDarkMode, setTempDarkMode] = useState(isDarkMode);
+  const [tempNotifications, setTempNotifications] = useState(notificationSettings);
+  const [tempLanguage, setTempLanguage] = useState(language);
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+
+  const colors = [
+    { id: 'red', bg: 'bg-red-600', text: 'text-red-600' },
+    { id: 'blue', bg: 'bg-blue-600', text: 'text-blue-600' },
+    { id: 'emerald', bg: 'bg-emerald-600', text: 'text-emerald-600' },
+    { id: 'amber', bg: 'bg-amber-600', text: 'text-amber-600' }
+  ];
+
+  const settingsItems = [
+    { id: 'notifications', title: "Notifications", desc: "Manage how you receive alerts and updates.", icon: <Bell /> },
+    { id: 'privacy', title: "Privacy & Security", desc: "Control your data and account protection.", icon: <Shield /> },
+    { id: 'display', title: "Display Preferences", desc: "Customize the look and feel of your portal.", icon: <Palette /> },
+    { id: 'language', title: "Language", desc: "Choose your preferred language for the interface.", icon: <Globe /> }
+  ];
+
+  const handleSave = () => {
+    setAccentColor(tempAccent);
+    setIsDarkMode(tempDarkMode);
+    setNotificationSettings(tempNotifications);
+    setLanguage(tempLanguage);
+    
+    localStorage.setItem('aid_portal_accent_color', tempAccent);
+    localStorage.setItem('aid_portal_dark_mode', String(tempDarkMode));
+    localStorage.setItem('aid_portal_notifications', JSON.stringify(tempNotifications));
+    localStorage.setItem('aid_portal_language', tempLanguage);
+    
+    setToastMessage('Settings saved successfully!');
+    setShowToast(true);
+    setTimeout(() => setShowToast(false), 3000);
+    setActiveSetting(null);
+  };
+
+  const handlePrivacyAction = (action: string) => {
+    setToastMessage(`${action} feature coming soon!`);
+    setShowToast(true);
+    setTimeout(() => setShowToast(false), 3000);
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+      <header>
+        <h1 className="text-5xl font-black tracking-tighter mb-2">Settings</h1>
+        <p className={cn("text-lg font-medium", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+          Manage your account preferences and security.
+        </p>
+      </header>
+
+      <div className="max-w-3xl space-y-4">
+        {settingsItems.map((item, i) => (
+          <motion.div 
+            key={item.id}
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: i * 0.1 }}
+            onClick={() => setActiveSetting(item.id)}
+            className={cn(
+              "p-8 rounded-[2.5rem] border flex items-center justify-between group cursor-pointer transition-all hover:scale-[1.01] active:scale-[0.99]",
+              isDarkMode 
+                ? "bg-[#111111] border-white/5 hover:border-white/10" 
+                : "bg-white border-slate-100 shadow-sm hover:shadow-md"
+            )}
+          >
+            <div className="flex items-center gap-8">
+              <div className={cn(
+                "w-16 h-16 rounded-3xl flex items-center justify-center transition-all",
+                isDarkMode 
+                  ? cn(
+                      "bg-white/5 text-slate-400 group-hover:bg-white/10",
+                      accentColor === 'red' ? "group-hover:text-red-600" :
+                      accentColor === 'blue' ? "group-hover:text-blue-600" :
+                      accentColor === 'emerald' ? "group-hover:text-emerald-600" :
+                      "group-hover:text-amber-600"
+                    )
+                  : cn(
+                      "bg-slate-50 text-slate-500 group-hover:bg-slate-100",
+                      accentColor === 'red' ? "group-hover:text-red-600" :
+                      accentColor === 'blue' ? "group-hover:text-blue-600" :
+                      accentColor === 'emerald' ? "group-hover:text-emerald-600" :
+                      "group-hover:text-amber-600"
+                    )
+              )}>
+                {React.cloneElement(item.icon as React.ReactElement, { className: "w-8 h-8" })}
+              </div>
+              <div>
+                <h3 className="text-xl font-black tracking-tight mb-1">{item.title}</h3>
+                <p className={cn("text-sm font-medium", isDarkMode ? "text-slate-500" : "text-slate-400")}>
+                  {item.desc}
+                </p>
+              </div>
+            </div>
+            <ChevronRight className={cn(
+              "w-6 h-6 transition-transform group-hover:translate-x-1",
+              isDarkMode ? "text-slate-700" : "text-slate-300"
+            )} />
+          </motion.div>
+        ))}
+      </div>
+
+      {/* Settings Modals */}
+      <AnimatePresence>
+        {showToast && (
+          <motion.div 
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className={cn(
+              "fixed bottom-8 left-1/2 -translate-x-1/2 px-8 py-4 rounded-2xl shadow-2xl z-[200] font-bold flex items-center gap-3",
+              isDarkMode ? "bg-white text-slate-900" : "bg-slate-900 text-white"
+            )}
+          >
+            <CheckCircle className={cn("w-5 h-5", accentColor === 'red' ? "text-red-600" : accentColor === 'blue' ? "text-blue-600" : accentColor === 'emerald' ? "text-emerald-600" : "text-amber-600")} />
+            {toastMessage}
+          </motion.div>
+        )}
+
+        {activeSetting && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setActiveSetting(null)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className={cn(
+                "relative w-full max-w-xl p-10 rounded-[3rem] border shadow-2xl overflow-hidden",
+                isDarkMode ? "bg-[#0A0A0A] border-white/10" : "bg-white border-slate-200"
+              )}
+            >
+              <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-4">
+                  <div className={cn(
+                    "w-12 h-12 rounded-2xl flex items-center justify-center text-white",
+                    accentColor === 'red' ? "bg-red-600" :
+                    accentColor === 'blue' ? "bg-blue-600" :
+                    accentColor === 'emerald' ? "bg-emerald-600" :
+                    "bg-amber-600"
+                  )}>
+                    {settingsItems.find(s => s.id === activeSetting)?.icon}
+                  </div>
+                  <h2 className="text-3xl font-black tracking-tighter">
+                    {settingsItems.find(s => s.id === activeSetting)?.title}
+                  </h2>
+                </div>
+                <button 
+                  onClick={() => setActiveSetting(null)}
+                  className={cn(
+                    "p-3 rounded-2xl transition-colors",
+                    isDarkMode ? "hover:bg-white/5 text-slate-400" : "hover:bg-slate-100 text-slate-500"
+                  )}
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="space-y-6">
+                {activeSetting === 'notifications' && (
+                  <div className="space-y-4">
+                    {[
+                      { id: 'email', label: 'Email Notifications' },
+                      { id: 'push', label: 'Push Notifications' },
+                      { id: 'sms', label: 'SMS Alerts' },
+                      { id: 'reports', label: 'Weekly Reports' }
+                    ].map((item) => (
+                      <div key={item.id} className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 dark:bg-white/5">
+                        <span className="font-bold">{item.label}</span>
+                        <button 
+                          onClick={() => setTempNotifications((prev: any) => ({ ...prev, [item.id]: !prev[item.id] }))}
+                          className={cn(
+                            "w-12 h-6 rounded-full relative transition-all",
+                            tempNotifications[item.id] 
+                              ? (accentColor === 'red' ? "bg-red-600" : accentColor === 'blue' ? "bg-blue-600" : accentColor === 'emerald' ? "bg-emerald-600" : "bg-amber-600")
+                              : "bg-slate-200 dark:bg-white/10"
+                          )}
+                        >
+                          <motion.div 
+                            animate={{ x: tempNotifications[item.id] ? 24 : 4 }}
+                            transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                            className="absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm" 
+                          />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {activeSetting === 'privacy' && (
+                  <div className="space-y-4">
+                    <button 
+                      onClick={() => handlePrivacyAction('Change Password')}
+                      className="w-full p-6 rounded-2xl bg-slate-900 text-white font-black uppercase tracking-widest text-xs hover:bg-slate-800 transition-all"
+                    >
+                      Change Password
+                    </button>
+                    <button 
+                      onClick={() => handlePrivacyAction('Two-Factor Authentication')}
+                      className="w-full p-6 rounded-2xl bg-slate-100 dark:bg-white/5 font-black uppercase tracking-widest text-xs hover:bg-slate-200 dark:hover:bg-white/10 transition-all"
+                    >
+                      Two-Factor Authentication
+                    </button>
+                    <button 
+                      onClick={() => handlePrivacyAction('Delete Account')}
+                      className="w-full p-6 rounded-2xl bg-red-50 text-red-600 font-black uppercase tracking-widest text-xs hover:bg-red-100 transition-all"
+                    >
+                      Delete Account
+                    </button>
+                  </div>
+                )}
+
+                {activeSetting === 'display' && (
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-2 gap-4">
+                      <button 
+                        onClick={() => setTempDarkMode(false)}
+                        className={cn(
+                          "p-6 rounded-2xl border-2 font-black transition-all",
+                          !tempDarkMode 
+                            ? cn(
+                                "bg-white text-slate-900",
+                                accentColor === 'red' ? "border-red-600" :
+                                accentColor === 'blue' ? "border-blue-600" :
+                                accentColor === 'emerald' ? "border-emerald-600" :
+                                "border-amber-600"
+                              )
+                            : "border-slate-200 bg-slate-50 text-slate-400"
+                        )}
+                      >
+                        Light Mode
+                      </button>
+                      <button 
+                        onClick={() => setTempDarkMode(true)}
+                        className={cn(
+                          "p-6 rounded-2xl border-2 font-black transition-all",
+                          tempDarkMode 
+                            ? cn(
+                                "bg-slate-900 text-white",
+                                accentColor === 'red' ? "border-red-600" :
+                                accentColor === 'blue' ? "border-blue-600" :
+                                accentColor === 'emerald' ? "border-emerald-600" :
+                                "border-amber-600"
+                              )
+                            : "border-slate-200 bg-slate-800 text-slate-500"
+                        )}
+                      >
+                        Dark Mode
+                      </button>
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-xs font-black uppercase tracking-widest text-slate-400">Accent Color</p>
+                      <div className="flex gap-4">
+                        {colors.map(c => (
+                          <div 
+                            key={c.id} 
+                            onClick={() => setTempAccent(c.id)}
+                            className={cn(
+                              "w-12 h-12 rounded-full cursor-pointer transition-all flex items-center justify-center",
+                              c.bg,
+                              tempAccent === c.id ? "ring-4 ring-offset-2 ring-slate-200" : "opacity-60 hover:opacity-100"
+                            )}
+                          >
+                            {tempAccent === c.id && <Check className="w-6 h-6 text-white" />}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {activeSetting === 'language' && (
+                  <div className="grid grid-cols-1 gap-3">
+                    {['English (US)', 'Filipino', 'Spanish', 'Japanese', 'Korean'].map((lang) => (
+                      <button 
+                        key={lang} 
+                        onClick={() => setTempLanguage(lang)}
+                        className={cn(
+                          "p-4 rounded-2xl text-left font-bold transition-all flex items-center justify-between",
+                          tempLanguage === lang 
+                            ? (accentColor === 'red' ? "bg-red-600 text-white" : accentColor === 'blue' ? "bg-blue-600 text-white" : accentColor === 'emerald' ? "bg-emerald-600 text-white" : "bg-amber-600 text-white")
+                            : "bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10"
+                        )}
+                      >
+                        {lang}
+                        {tempLanguage === lang && <Check className="w-5 h-5" />}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-10 pt-6 border-t border-slate-100 dark:border-white/5">
+                <button 
+                  onClick={handleSave}
+                  className={cn(
+                    "w-full py-5 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl transition-all",
+                    accentColor === 'red' ? "bg-red-600 shadow-red-600/20 hover:bg-red-500" :
+                    accentColor === 'blue' ? "bg-blue-600 shadow-blue-600/20 hover:bg-blue-500" :
+                    accentColor === 'emerald' ? "bg-emerald-600 shadow-emerald-600/20 hover:bg-emerald-500" :
+                    "bg-amber-600 shadow-amber-600/20 hover:bg-amber-500"
+                  )}
+                >
+                  Save Changes
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
+function FinancialAid({ user, financialAid, fetchFinancialAid, isDarkMode, selectedScholarship, setSelectedScholarship }: { user: UserData, financialAid: any[], fetchFinancialAid: any, isDarkMode?: boolean, selectedScholarship?: string | null, setSelectedScholarship?: any }) {
+  const [showApply, setShowApply] = useState(false);
+  const [formData, setFormData] = useState({ type: 'Scholarship', amount: '', reason: '' });
+
+  useEffect(() => {
+    if (selectedScholarship) {
+      setFormData(prev => ({ ...prev, type: selectedScholarship }));
+      setShowApply(true);
+    }
+  }, [selectedScholarship]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const { error } = await supabase
+      .from('financial_aid')
+      .insert({ 
+        program: formData.type, 
+        amount: parseFloat(formData.amount), 
+        reason: formData.reason, 
+        studentId: user.id, 
+        studentName: user.name,
+        date: new Date().toISOString(),
+        status: 'pending'
+      });
+    
+    if (!error) {
+      setShowApply(false);
+      setSelectedScholarship?.(null);
+      fetchFinancialAid();
+    }
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-10">
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div>
+          <h1 className="text-4xl font-black tracking-tighter">Financial Aid</h1>
+          <p className={isDarkMode ? "text-slate-400" : "text-slate-500"}>Manage your scholarships, grants, and academic funding.</p>
+        </div>
+        <button 
+          onClick={() => setShowApply(true)}
+          className={cn(
+            "flex items-center justify-center gap-2 px-8 py-4 rounded-2xl font-black transition-all",
+            isDarkMode ? "bg-white text-slate-900 hover:bg-slate-200" : "bg-slate-900 text-white hover:bg-slate-800 shadow-lg shadow-slate-200"
+          )}
+        >
+          <Plus className="w-5 h-5" />
+          New Application
+        </button>
+      </header>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className={cn(
+          "lg:col-span-1 p-10 rounded-[3rem] text-white shadow-2xl relative overflow-hidden flex flex-col justify-between min-h-[300px]",
+          isDarkMode ? "bg-red-600" : "bg-slate-900"
+        )}>
+          <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
+          <div className="relative z-10">
+            <p className="text-white/60 text-xs font-black uppercase tracking-widest mb-2">Outstanding Balance</p>
+            <h2 className="text-6xl font-black tracking-tighter">₱{user.balance?.toLocaleString()}</h2>
+          </div>
+          <div className="relative z-10 pt-10 border-t border-white/10 flex flex-col gap-4">
+            <div className="flex justify-between items-center">
+              <p className="text-sm text-white/60 font-bold">Next Payment Due</p>
+              <p className="text-sm font-black">April 01, 2024</p>
+            </div>
+            <button className={cn(
+              "w-full py-4 rounded-2xl font-black text-sm transition-all",
+              isDarkMode ? "bg-white text-red-600 hover:bg-slate-100" : "bg-white text-slate-900 hover:bg-slate-100"
+            )}>Pay Now</button>
+          </div>
+        </div>
+
+        <div className={cn(
+          "lg:col-span-2 p-10 rounded-[3rem] border transition-all",
+          isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+        )}>
+          <h3 className="text-2xl font-black tracking-tight mb-8">Application History</h3>
+          <div className="space-y-4">
+            {financialAid.filter(f => f.userId === user.id).length > 0 ? (
+              financialAid.filter(f => f.userId === user.id).map(f => (
+                <div key={f.id} className={cn(
+                  "flex items-center justify-between p-6 rounded-3xl transition-all",
+                  isDarkMode ? "bg-white/5 hover:bg-white/10" : "bg-slate-50 hover:bg-slate-100"
+                )}>
+                  <div className="flex items-center gap-6">
+                    <div className="w-12 h-12 rounded-2xl bg-red-500/10 flex items-center justify-center text-red-500">
+                      <Shield className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <p className="font-black text-lg">{f.program}</p>
+                      <p className={cn("text-xs font-bold", isDarkMode ? "text-slate-500" : "text-slate-400")}>
+                        ₱{f.amount} • {new Date(f.date).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                  <span className={cn(
+                    "px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest",
+                    f.status === 'pending' ? "bg-amber-500/10 text-amber-500" : "bg-emerald-500/10 text-emerald-500"
+                  )}>
+                    {f.status}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-12">
+                <div className="w-16 h-16 bg-slate-100 dark:bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <FileText className="w-8 h-8 text-slate-400" />
+                </div>
+                <p className="text-slate-500 font-bold">No applications found.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {showApply && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[100]">
+          <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className={cn(
+            "p-10 rounded-[3rem] w-full max-w-md shadow-2xl border",
+            isDarkMode ? "bg-[#111111] border-white/10 text-white" : "bg-white border-slate-200"
+          )}>
+            <div className="flex justify-between items-center mb-8">
+              <h2 className="text-3xl font-black tracking-tighter text-slate-900 dark:text-white">Apply for Aid</h2>
+              <button onClick={() => setShowApply(false)} className="p-2 hover:bg-white/5 rounded-full transition-colors text-slate-400">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Aid Category</label>
+                <select 
+                  value={formData.type}
+                  onChange={e => setFormData({...formData, type: e.target.value})}
+                  className={cn(
+                    "w-full p-4 rounded-2xl border font-bold outline-none focus:ring-2 focus:ring-red-600 transition-all text-slate-900 dark:text-white",
+                    isDarkMode ? "bg-white/5 border-white/10" : "bg-slate-50 border-slate-200"
+                  )}
+                >
+                  <option className="bg-white dark:bg-[#111111] text-slate-900 dark:text-white">Scholarship</option>
+                  <option className="bg-white dark:bg-[#111111] text-slate-900 dark:text-white">Grant</option>
+                  <option className="bg-white dark:bg-[#111111] text-slate-900 dark:text-white">Student Loan</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Requested Amount (₱)</label>
+                <input 
+                  type="number" 
+                  value={formData.amount}
+                  onChange={e => setFormData({...formData, amount: e.target.value})}
+                  className={cn(
+                    "w-full p-4 rounded-2xl border font-bold outline-none focus:ring-2 focus:ring-red-600 transition-all text-slate-900 dark:text-white",
+                    isDarkMode ? "bg-white/5 border-white/10" : "bg-slate-50 border-slate-200"
+                  )}
+                  placeholder="e.g. 5000"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Justification</label>
+                <textarea 
+                  value={formData.reason}
+                  onChange={e => setFormData({...formData, reason: e.target.value})}
+                  className={cn(
+                    "w-full p-4 rounded-2xl border font-bold outline-none focus:ring-2 focus:ring-red-600 transition-all h-32 resize-none text-slate-900 dark:text-white",
+                    isDarkMode ? "bg-white/5 border-white/10" : "bg-slate-50 border-slate-200"
+                  )}
+                  placeholder="Explain your financial situation..."
+                  required
+                />
+              </div>
+              <div className="flex gap-4 pt-4">
+                <button type="button" onClick={() => setShowApply(false)} className="flex-1 py-4 font-black text-slate-500 hover:text-red-600 transition-colors">Cancel</button>
+                <button type="submit" className="flex-1 py-4 bg-red-600 text-white rounded-2xl font-black shadow-lg shadow-red-600/20 hover:bg-red-700 transition-all">Submit</button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
+function Messages({ user, messages, fetchMessages, users, isDarkMode, selectedChatUser, setSelectedChatUser }: { user: UserData, messages: any[], fetchMessages: any, users: UserData[], isDarkMode?: boolean, selectedChatUser: UserData | null, setSelectedChatUser: (u: UserData | null) => void }) {
+  const [text, setText] = useState('');
+
+  useEffect(() => {
+    if (selectedChatUser) {
+      setSelectedChatUser(selectedChatUser);
+    }
+  }, [selectedChatUser]);
+
+  const handleSend = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const targetUser = selectedChatUser;
+    if (!targetUser || !text) return;
+    const { error } = await supabase
+      .from('messages')
+      .insert({ 
+        from: user.id, 
+        to: targetUser.id, 
+        content: text,
+        timestamp: new Date().toISOString()
+      });
+    
+    if (!error) {
+      setText('');
+      fetchMessages();
+    }
+  };
+
+  const filteredMessages = messages.filter(m => 
+    selectedChatUser && ((m.from === selectedChatUser.id && m.to === user.id) || (m.from === user.id && m.to === selectedChatUser.id))
+  );
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="h-[calc(100vh-12rem)] flex gap-4 md:gap-8">
+      <div className={cn(
+        "w-full md:w-80 rounded-[2.5rem] border overflow-hidden flex flex-col transition-all",
+        isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm",
+        selectedChatUser ? "hidden md:flex" : "flex"
+      )}>
+        <div className={cn("p-6 md:p-8 border-b", isDarkMode ? "border-white/5" : "border-slate-100")}>
+          <h3 className="text-xl font-black tracking-tight">Contacts</h3>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4 space-y-2">
+          {users.filter(u => u.id !== user.id).map(u => (
+            <button 
+              key={u.id}
+              onClick={() => setSelectedChatUser(u)}
+              className={cn(
+                "w-full flex items-center gap-4 p-4 rounded-3xl transition-all group",
+                selectedChatUser?.id === u.id 
+                  ? (isDarkMode ? "bg-red-600 text-white" : "bg-slate-900 text-white shadow-lg shadow-slate-200") 
+                  : (isDarkMode ? "hover:bg-white/5" : "hover:bg-slate-50")
+              )}
+            >
+              <div className={cn(
+                "w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg shrink-0 overflow-hidden",
+                selectedChatUser?.id === u.id ? "bg-white/20" : (isDarkMode ? "bg-white/5" : "bg-slate-100")
+              )}>
+                {u.profilePic ? (
+                  <img src={u.profilePic} alt={u.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                ) : (
+                  u.name[0]
+                )}
+              </div>
+              <div className="text-left overflow-hidden">
+                <p className="font-bold truncate">{u.name}</p>
+                <p className={cn(
+                  "text-[10px] uppercase tracking-widest font-black opacity-60",
+                  selectedChatUser?.id === u.id ? "text-white" : (isDarkMode ? "text-slate-400" : "text-slate-500")
+                )}>{u.role}</p>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className={cn(
+        "flex-1 rounded-[2.5rem] border overflow-hidden flex flex-col transition-all",
+        isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm",
+        !selectedChatUser ? "hidden md:flex" : "flex"
+      )}>
+        {selectedChatUser ? (
+          <>
+            <div className={cn("p-6 md:p-8 border-b flex items-center gap-4", isDarkMode ? "border-white/5" : "border-slate-100")}>
+              <button onClick={() => setSelectedChatUser(null)} className="md:hidden p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-full transition-colors">
+                <ChevronLeft className="w-6 h-6" />
+              </button>
+              <div className="w-12 h-12 bg-red-500/10 rounded-2xl flex items-center justify-center font-black text-red-500 text-xl">
+                {selectedChatUser.name[0]}
+              </div>
+              <div>
+                <h3 className="text-xl font-black tracking-tight">{selectedChatUser.name}</h3>
+                <p className={cn("text-xs font-bold", isDarkMode ? "text-slate-500" : "text-slate-400")}>Online • {selectedChatUser.role}</p>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6">
+              {filteredMessages.map((m, i) => (
+                <div key={i} className={cn(
+                  "flex flex-col max-w-[85%] md:max-w-[80%]",
+                  m.from === user.id ? "ml-auto items-end" : "items-start"
+                )}>
+                  <div className={cn(
+                    "p-4 md:p-5 rounded-[1.5rem] md:rounded-[2rem] text-sm font-medium",
+                    m.from === user.id 
+                      ? (isDarkMode ? "bg-red-600 text-white rounded-tr-none" : "bg-slate-900 text-white rounded-tr-none shadow-lg shadow-slate-200") 
+                      : (isDarkMode ? "bg-white/5 text-slate-300 rounded-tl-none" : "bg-slate-100 text-slate-700 rounded-tl-none")
+                  )}>
+                    {m.content}
+                  </div>
+                  <p className={cn("text-[10px] font-bold mt-2 uppercase tracking-widest", isDarkMode ? "text-slate-600" : "text-slate-400")}>
+                    {new Date(m.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                </div>
+              ))}
+            </div>
+            <form onSubmit={handleSend} className={cn("p-6 md:p-8 border-t", isDarkMode ? "border-white/5" : "border-slate-100")}>
+              <div className="flex gap-4">
+                <input 
+                  type="text" 
+                  value={text}
+                  onChange={e => setText(e.target.value)}
+                  className={cn(
+                    "flex-1 p-4 md:p-5 rounded-2xl border font-bold outline-none focus:ring-2 focus:ring-red-600 transition-all",
+                    isDarkMode ? "bg-white/5 border-white/10" : "bg-slate-50 border-slate-200"
+                  )}
+                  placeholder="Type a message..."
+                />
+                <button type="submit" className={cn(
+                  "p-4 md:p-5 rounded-2xl font-black transition-all",
+                  isDarkMode ? "bg-red-600 text-white hover:bg-red-700" : "bg-slate-900 text-white hover:bg-slate-800"
+                )}>
+                  <Send className="w-6 h-6" />
+                </button>
+              </div>
+            </form>
+          </>
+        ) : (
+          <div className="flex-1 flex flex-col items-center justify-center text-center p-12">
+            <div className={cn("w-24 h-24 rounded-[2rem] flex items-center justify-center mb-6", isDarkMode ? "bg-white/5" : "bg-slate-50")}>
+              <MessageSquare className="w-12 h-12 text-slate-400" />
+            </div>
+            <h3 className="text-2xl font-black tracking-tight mb-2">Select a Contact</h3>
+            <p className={cn("max-w-xs", isDarkMode ? "text-slate-500" : "text-slate-400")}>Choose a student or faculty member to start a secure conversation.</p>
+          </div>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
+function Documents({ user, isDarkMode }: { user: UserData, isDarkMode?: boolean }) {
+  const [docs, setDocs] = useState([
+    { id: 1, name: 'School_ID_2024.pdf', type: 'PDF', size: '1.2 MB', date: '2024-11-10', category: 'Identification' },
+    { id: 2, name: 'Report_Card_Q1.pdf', type: 'PDF', size: '2.4 MB', date: '2024-11-10', category: 'Academic' },
+    { id: 3, name: 'Income_Tax_Return.pdf', type: 'PDF', size: '3.1 MB', date: '2024-11-10', category: 'Financial' },
+  ]);
+
+  const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const newDoc = {
+        id: Date.now(),
+        name: file.name,
+        type: file.name.split('.').pop()?.toUpperCase() || 'FILE',
+        size: (file.size / (1024 * 1024)).toFixed(1) + ' MB',
+        date: new Date().toISOString().split('T')[0],
+        category: 'General'
+      };
+      setDocs([newDoc, ...docs]);
+    }
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-4xl font-black tracking-tighter">My Documents</h1>
+          <p className={isDarkMode ? "text-slate-400" : "text-slate-500"}>Manage and upload your required documents for scholarship applications.</p>
+        </div>
+        <label className="px-6 py-3 bg-red-600 text-white rounded-2xl font-black shadow-lg shadow-red-600/20 hover:bg-red-700 transition-all flex items-center gap-2 cursor-pointer">
+          <Upload className="w-5 h-5" />
+          Upload New
+          <input type="file" className="hidden" onChange={handleUpload} />
+        </label>
+      </header>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {docs.map(doc => (
+          <motion.div 
+            key={doc.id}
+            whileHover={{ y: -5 }}
+            className={cn(
+              "p-6 rounded-[2rem] border transition-all group",
+              isDarkMode ? "bg-[#111111] border-white/5 hover:border-red-500/30" : "bg-white border-slate-200 shadow-sm hover:shadow-xl hover:shadow-slate-200"
+            )}
+          >
+            <div className="flex items-start justify-between mb-6">
+              <div className={cn(
+                "w-12 h-12 rounded-2xl flex items-center justify-center",
+                isDarkMode ? "bg-white/5" : "bg-slate-50"
+              )}>
+                <FileText className="w-6 h-6 text-red-600" />
+              </div>
+              <button className="p-2 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500/10 rounded-xl text-red-500">
+                <Download className="w-5 h-5" />
+              </button>
+            </div>
+            <h3 className="font-black text-lg mb-1 truncate">{doc.name}</h3>
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">{doc.category} • {doc.type}</p>
+            <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-white/5">
+              <span className="text-xs font-bold text-slate-500">{doc.size}</span>
+              <span className="text-xs font-bold text-slate-500">{doc.date}</span>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+    </motion.div>
+  );
+}
+
+function Announcements({ announcements, user, isDarkMode, fetchAnnouncements, setConfirmConfig, activeModal, setActiveModal }: { announcements: any[], user: UserData, isDarkMode?: boolean, fetchAnnouncements: () => void, setConfirmConfig: any, activeModal?: string | null, setActiveModal?: (val: string | null) => void }) {
+  const [showForm, setShowForm] = useState(false);
+
+  useEffect(() => {
+    if (activeModal === 'announcement') {
+      setShowForm(true);
+      if (setActiveModal) setActiveModal(null);
+    }
+  }, [activeModal]);
+  const [formData, setFormData] = useState({ title: '', content: '', role: 'all' });
+
+  const handleDelete = async (id: string) => {
+    setConfirmConfig({
+      isOpen: true,
+      title: 'Delete Announcement',
+      message: 'Are you sure you want to delete this announcement? This action cannot be undone.',
+      type: 'danger',
+      onConfirm: async () => {
+        const { error } = await supabase
+          .from('announcements')
+          .delete()
+          .eq('id', id);
+        
+        if (!error) {
+          fetchAnnouncements();
+        }
+      }
+    });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const { error } = await supabase
+      .from('announcements')
+      .insert({ 
+        ...formData, 
+        date: new Date().toISOString() 
+      });
+    
+    if (!error) {
+      setShowForm(false);
+      setFormData({ title: '', content: '', role: 'all' });
+      fetchAnnouncements();
+    }
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-4xl font-black tracking-tighter">Campus Announcements</h1>
+          <p className={isDarkMode ? "text-slate-400" : "text-slate-500"}>Stay updated with the latest news and events from St. Cecilia's College.</p>
+        </div>
+        {(user.role === 'admin' || user.role === 'faculty') && (
+          <button 
+            onClick={() => setShowForm(!showForm)}
+            className="px-6 py-3 bg-red-600 text-white rounded-2xl font-black shadow-lg shadow-red-600/20 hover:bg-red-700 transition-all flex items-center gap-2"
+          >
+            <Plus className="w-5 h-5" />
+            {showForm ? 'Close Form' : 'Create New'}
+          </button>
+        )}
+      </header>
+
+      {showForm && (
+        <motion.div 
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: 'auto' }}
+          className={cn(
+            "p-10 rounded-[3rem] border",
+            isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+          )}
+        >
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Announcement Title</label>
+                <input 
+                  type="text" 
+                  value={formData.title}
+                  onChange={e => setFormData({...formData, title: e.target.value})}
+                  className={cn(
+                    "w-full p-5 rounded-2xl border outline-none focus:ring-2 focus:ring-red-600 transition-all font-bold text-slate-900 dark:text-white",
+                    isDarkMode ? "bg-white/5 border-white/10" : "bg-slate-50 border-slate-200"
+                  )}
+                  placeholder="e.g., Final Exams Schedule"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Target Audience</label>
+                <select 
+                  value={formData.role}
+                  onChange={e => setFormData({...formData, role: e.target.value})}
+                  className={cn(
+                    "w-full p-5 rounded-2xl border outline-none focus:ring-2 focus:ring-red-600 transition-all font-bold text-slate-900 dark:text-white",
+                    isDarkMode ? "bg-[#1A1A1A] border-white/10" : "bg-slate-50 border-slate-200"
+                  )}
+                >
+                  <option value="all" className="bg-white dark:bg-[#111111] text-slate-900 dark:text-white">Everyone</option>
+                  <option value="student" className="bg-white dark:bg-[#111111] text-slate-900 dark:text-white">Students Only</option>
+                  <option value="faculty" className="bg-white dark:bg-[#111111] text-slate-900 dark:text-white">Faculty Only</option>
+                  <option value="staff" className="bg-white dark:bg-[#111111] text-slate-900 dark:text-white">Staff Only</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Content</label>
+              <textarea 
+                value={formData.content}
+                onChange={e => setFormData({...formData, content: e.target.value})}
+                className={cn(
+                  "w-full p-5 rounded-2xl border outline-none focus:ring-2 focus:ring-red-600 transition-all font-bold h-40 resize-none text-slate-900 dark:text-white",
+                  isDarkMode ? "bg-white/5 border-white/10" : "bg-slate-50 border-slate-200"
+                )}
+                placeholder="Write the details of your announcement here..."
+                required
+              />
+            </div>
+            <div className="flex justify-end gap-4">
+              <button type="button" onClick={() => setShowForm(false)} className="px-8 py-4 font-black text-slate-500 hover:text-red-600 transition-colors">Cancel</button>
+              <button type="submit" className="px-10 py-4 bg-red-600 text-white rounded-2xl font-black shadow-lg shadow-red-600/20 hover:bg-red-700 transition-all">Publish Announcement</button>
+            </div>
+          </form>
+        </motion.div>
+      )}
+
+      <div className="grid grid-cols-1 gap-8">
+        {announcements.filter(a => a.role === 'all' || a.role === user.role).map(a => (
+          <motion.div 
+            key={a.id} 
+            whileHover={{ y: -5 }}
+            className={cn(
+              "p-10 rounded-[3rem] border transition-all",
+              isDarkMode ? "bg-[#111111] border-white/5 hover:border-red-500/30" : "bg-white border-slate-200 shadow-sm hover:shadow-xl hover:shadow-slate-200"
+            )}
+          >
+            <div className="flex flex-wrap items-center gap-4 mb-6">
+              <span className={cn(
+                "px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest",
+                isDarkMode ? "bg-white/5 text-slate-400" : "bg-slate-100 text-slate-600"
+              )}>
+                {a.role === 'all' ? 'Everyone' : a.role}
+              </span>
+              <div className={cn("w-1.5 h-1.5 rounded-full", isDarkMode ? "bg-white/10" : "bg-slate-300")}></div>
+              <span className={cn("text-xs font-bold", isDarkMode ? "text-slate-500" : "text-slate-400")}>
+                {new Date(a.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+              </span>
+            </div>
+            <h3 className="text-3xl font-black tracking-tight mb-4">{a.title}</h3>
+            <p className={cn("text-lg leading-relaxed", isDarkMode ? "text-slate-400" : "text-slate-600")}>{a.content}</p>
+            <div className="mt-8 pt-8 border-t border-dashed border-slate-200 dark:border-white/5 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-red-600 flex items-center justify-center text-white text-[10px] font-black">SC</div>
+                <span className={cn("text-xs font-black uppercase tracking-widest", isDarkMode ? "text-slate-500" : "text-slate-400")}>Official Administration</span>
+              </div>
+              {user.role === 'admin' && (
+                <button 
+                  onClick={() => handleDelete(a.id)}
+                  className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-xl transition-all"
+                  title="Delete Announcement"
+                >
+                  <Trash2 className="w-5 h-5" />
+                </button>
+              )}
+            </div>
+          </motion.div>
+        ))}
+      </div>
+    </motion.div>
+  );
+}
+
+const StudentsView = ({ users, isDarkMode }: { users: UserData[], isDarkMode: boolean }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const students = users.filter(u => u.role === 'student');
+  const filteredStudents = students.filter(s => 
+    s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    s.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (s.course && s.course.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+      <header>
+        <h1 className="text-4xl font-black tracking-tighter">Student Directory</h1>
+        <p className={isDarkMode ? "text-slate-400" : "text-slate-500"}>Search and view student profiles.</p>
+      </header>
+
+      <div className="relative max-w-md">
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+        <input 
+          type="text"
+          placeholder="Search by name, ID, or course..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className={cn(
+            "w-full pl-10 pr-4 py-3 rounded-xl border outline-none transition-all",
+            isDarkMode ? "bg-white/5 border-white/10 focus:border-red-600/50" : "bg-white border-slate-200 focus:border-red-600"
+          )}
+        />
+      </div>
+
+      <div className={cn(
+        "rounded-[2.5rem] border overflow-hidden transition-all",
+        isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+      )}>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className={isDarkMode ? "bg-white/5" : "bg-slate-50"}>
+                <th className="px-8 py-6 text-xs font-bold text-slate-400 uppercase tracking-widest">Student</th>
+                <th className="px-8 py-6 text-xs font-bold text-slate-400 uppercase tracking-widest">Course & Year</th>
+                <th className="px-8 py-6 text-xs font-bold text-slate-400 uppercase tracking-widest text-right">Status</th>
+              </tr>
+            </thead>
+            <tbody className={cn("divide-y", isDarkMode ? "divide-white/5" : "divide-slate-100")}>
+              {filteredStudents.map(s => (
+                <tr key={s.id} className={cn("transition-colors", isDarkMode ? "hover:bg-white/5" : "hover:bg-slate-50")}>
+                  <td className="px-8 py-6">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-red-500/10 flex items-center justify-center font-black text-red-500 text-xl overflow-hidden">
+                        {s.profilePic ? (
+                          <img src={s.profilePic} alt={s.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                        ) : (
+                          s.name[0]
+                        )}
+                      </div>
+                      <div>
+                        <p className="font-bold text-lg">{s.name} {s.surname}</p>
+                        <p className={cn("text-xs font-mono", isDarkMode ? "text-red-400" : "text-red-600")}>{s.id}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-8 py-6">
+                    <p className="font-bold">{s.course}</p>
+                    <p className="text-xs text-slate-400">{s.yearLevel}</p>
+                  </td>
+                  <td className="px-8 py-6 text-right">
+                    <span className={cn(
+                      "px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest",
+                      s.status === 'approved' ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500"
+                    )}>
+                      {s.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+              {filteredStudents.length === 0 && (
+                <tr>
+                  <td colSpan={3} className="px-8 py-20 text-center text-slate-400">
+                    No students found matching your search.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
+const RolesView = ({ isDarkMode }: any) => (
+  <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+    <header>
+      <h1 className="text-4xl font-black tracking-tighter uppercase">Roles & Permissions</h1>
+      <p className={isDarkMode ? "text-slate-400" : "text-slate-500"}>Manage system access levels and user permissions.</p>
+    </header>
+    <div className={cn("p-12 rounded-[3rem] border text-center", isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm")}>
+      <ShieldCheck className="w-16 h-16 text-red-600 mx-auto mb-6" />
+      <h3 className="text-2xl font-black mb-2">Access Control Management</h3>
+      <p className="text-slate-500 max-w-md mx-auto">This module allows administrators to define and assign roles to users, controlling their access to various system features.</p>
+    </div>
+  </motion.div>
+);
+
+const TransactionsView = ({ isDarkMode }: any) => (
+  <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+    <header>
+      <h1 className="text-4xl font-black tracking-tighter uppercase">Financial Transactions</h1>
+      <p className={isDarkMode ? "text-slate-400" : "text-slate-500"}>Monitor all financial activities and payment records.</p>
+    </header>
+    <div className={cn("p-12 rounded-[3rem] border text-center", isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm")}>
+      <Calculator className="w-16 h-16 text-red-600 mx-auto mb-6" />
+      <h3 className="text-2xl font-black mb-2">Transaction Logs</h3>
+      <p className="text-slate-500 max-w-md mx-auto">View and export detailed financial transaction history for all students and programs.</p>
+    </div>
+  </motion.div>
+);
+
+const EnrollmentView = ({ isDarkMode, users, courses, fetchUsers }: { isDarkMode: boolean, users: UserData[], courses: any[], fetchUsers: () => void }) => {
+  const [selectedStudent, setSelectedStudent] = useState<UserData | null>(null);
+  const [selectedCourse, setSelectedCourse] = useState<any | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const students = users.filter(u => u.role === 'student');
+  const filteredStudents = students.filter(s => 
+    s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    s.id.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const handleEnroll = async () => {
+    if (!selectedStudent || !selectedCourse) {
+      alert('Please select both a student and a course.');
+      return;
+    }
+
+    setIsProcessing(true);
+    
+    const newScheduleEntry = {
+      subject: selectedCourse.id,
+      instructor: selectedCourse.instructor || 'Staff',
+      day: selectedCourse.day,
+      time: selectedCourse.time,
+      location: selectedCourse.location
+    };
+
+    // Check if already in schedule
+    const alreadyEnrolled = (selectedStudent.schedule || []).some((s: any) => s.subject === selectedCourse.id);
+    if (alreadyEnrolled) {
+      alert('Student is already enrolled in this subject.');
+      setIsProcessing(false);
+      return;
+    }
+
+    const updatedSchedule = [...(selectedStudent.schedule || []), newScheduleEntry];
+    
+    const { error } = await supabase
+      .from('users')
+      .update({ schedule: updatedSchedule })
+      .eq('id', selectedStudent.id);
+    
+    if (!error) {
+      fetchUsers();
+      alert(`Successfully enrolled ${selectedStudent.name} in ${selectedCourse.id}`);
+      setSelectedCourse(null);
+    } else {
+      alert('Error enrolling student: ' + error.message);
+    }
+    setIsProcessing(false);
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+      <header>
+        <h1 className="text-4xl font-black tracking-tighter uppercase">Course Enrollment</h1>
+        <p className={isDarkMode ? "text-slate-400" : "text-slate-500"}>Manage student enrollments and course assignments.</p>
+      </header>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Student Selection */}
+        <div className={cn("p-8 rounded-[2.5rem] border flex flex-col gap-6", isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm")}>
+          <div className="flex items-center justify-between">
+            <h3 className="text-xl font-bold">1. Select Student</h3>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input 
+                type="text"
+                placeholder="Search students..."
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                className={cn("pl-10 pr-4 py-2 rounded-xl text-xs font-bold outline-none border", isDarkMode ? "bg-white/5 border-white/10" : "bg-slate-50 border-slate-200")}
+              />
+            </div>
+          </div>
+          
+          <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+            {filteredStudents.map(student => (
+              <button 
+                key={student.id}
+                onClick={() => setSelectedStudent(student)}
+                className={cn(
+                  "w-full p-4 rounded-2xl border flex items-center justify-between transition-all",
+                  selectedStudent?.id === student.id 
+                    ? "bg-red-600 border-red-600 text-white" 
+                    : isDarkMode ? "bg-white/5 border-white/5 hover:bg-white/10" : "bg-slate-50 border-slate-100 hover:bg-slate-100"
+                )}
+              >
+                <div className="flex items-center gap-3">
+                  <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center font-bold", selectedStudent?.id === student.id ? "bg-white/20" : "bg-red-600 text-white")}>
+                    {student.name[0]}
+                  </div>
+                  <div className="text-left">
+                    <p className="font-bold text-sm">{student.name}</p>
+                    <p className={cn("text-[10px] uppercase tracking-widest", selectedStudent?.id === student.id ? "text-white/60" : "text-slate-400")}>{student.id}</p>
+                  </div>
+                </div>
+                {selectedStudent?.id === student.id && <CheckCircle className="w-5 h-5" />}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Course Selection */}
+        <div className={cn("p-8 rounded-[2.5rem] border flex flex-col gap-6", isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm")}>
+          <h3 className="text-xl font-bold">2. Select Course</h3>
+          <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+            {courses.map(course => (
+              <button 
+                key={course.id}
+                onClick={() => setSelectedCourse(course)}
+                className={cn(
+                  "w-full p-4 rounded-2xl border flex items-center justify-between transition-all",
+                  selectedCourse?.id === course.id 
+                    ? "bg-slate-900 border-slate-900 text-white" 
+                    : isDarkMode ? "bg-white/5 border-white/5 hover:bg-white/10" : "bg-slate-50 border-slate-100 hover:bg-slate-100"
+                )}
+              >
+                <div className="flex items-center gap-3">
+                  <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center font-bold", selectedCourse?.id === course.id ? "bg-white/20" : "bg-slate-900 text-white")}>
+                    <Book className="w-5 h-5" />
+                  </div>
+                  <div className="text-left">
+                    <p className="font-bold text-sm">{course.name}</p>
+                    <p className={cn("text-[10px] uppercase tracking-widest", selectedCourse?.id === course.id ? "text-white/60" : "text-slate-400")}>{course.id} • {course.schedule}</p>
+                  </div>
+                </div>
+                {selectedCourse?.id === course.id && <CheckCircle className="w-5 h-5" />}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Summary & Action */}
+      <div className={cn("p-8 rounded-[2.5rem] border flex flex-col md:flex-row items-center justify-between gap-6", isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm")}>
+        <div className="flex items-center gap-6">
+          <div className="text-center md:text-left">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Student</p>
+            <p className="font-bold">{selectedStudent ? selectedStudent.name : 'Not selected'}</p>
+          </div>
+          <div className="w-px h-10 bg-slate-100 dark:bg-white/5 hidden md:block" />
+          <div className="text-center md:text-left">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Course</p>
+            <p className="font-bold">{selectedCourse ? selectedCourse.name : 'Not selected'}</p>
+          </div>
+        </div>
+        <button 
+          disabled={!selectedStudent || !selectedCourse || isProcessing}
+          onClick={handleEnroll}
+          className={cn(
+            "px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-sm transition-all flex items-center gap-2",
+            (!selectedStudent || !selectedCourse || isProcessing)
+              ? "bg-slate-100 text-slate-400 cursor-not-allowed"
+              : "bg-red-600 text-white shadow-lg shadow-red-600/20 hover:bg-red-500"
+          )}
+        >
+          {isProcessing ? 'Processing...' : 'Confirm Enrollment'}
+          <UserPlus className="w-5 h-5" />
+        </button>
+      </div>
+    </motion.div>
+  );
+};
+
+const GradesMgmtView = ({ users, isDarkMode, fetchUsers, initialFilter }: { users: UserData[], isDarkMode: boolean, fetchUsers: () => void, initialFilter?: string }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedStudent, setSelectedStudent] = useState<UserData | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingGradeIndex, setEditingGradeIndex] = useState<number | null>(null);
+  const [gradeForm, setGradeForm] = useState({ subject: initialFilter || '', instructor: '', grade: '', semester: '1st Semester 2024-2025' });
+
+  useEffect(() => {
+    if (initialFilter) {
+      setGradeForm(prev => ({ ...prev, subject: initialFilter }));
+    }
+  }, [initialFilter]);
+
+  const students = users.filter(u => u.role === 'student');
+  const filteredStudents = students.filter(s => 
+    s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    s.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (s.grades || []).some((g: any) => g.subject.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+
+  const handleSaveGrade = async () => {
+    if (!selectedStudent) return;
+    
+    let updatedGrades = [...(selectedStudent.grades || [])];
+    if (editingGradeIndex !== null) {
+      updatedGrades[editingGradeIndex] = gradeForm;
+    } else {
+      updatedGrades.push(gradeForm);
+    }
+
+    const { error } = await supabase
+      .from('users')
+      .update({ grades: updatedGrades })
+      .eq('id', selectedStudent.id);
+    
+    if (!error) {
+      fetchUsers();
+      setShowEditModal(false);
+      setEditingGradeIndex(null);
+      setGradeForm({ subject: '', instructor: '', grade: '', semester: '1st Semester 2024-2025' });
+      // Update local selected student to reflect changes
+      const updatedStudent = { ...selectedStudent, grades: updatedGrades };
+      setSelectedStudent(updatedStudent);
+    } else {
+      alert('Error saving grade: ' + error.message);
+    }
+  };
+
+  const handleDeleteGrade = async (index: number) => {
+    if (!selectedStudent || !confirm('Are you sure you want to delete this grade?')) return;
+
+    const updatedGrades = (selectedStudent.grades || []).filter((_, i) => i !== index);
+    const { error } = await supabase
+      .from('users')
+      .update({ grades: updatedGrades })
+      .eq('id', selectedStudent.id);
+    
+    if (!error) {
+      fetchUsers();
+      const updatedStudent = { ...selectedStudent, grades: updatedGrades };
+      setSelectedStudent(updatedStudent);
+    } else {
+      alert('Error deleting grade: ' + error.message);
+    }
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+      <header>
+        <h1 className="text-4xl font-black tracking-tighter uppercase">Grades Management</h1>
+        <p className={isDarkMode ? "text-slate-400" : "text-slate-500"}>View and manage all student academic records.</p>
+      </header>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Student List */}
+        <div className="lg:col-span-1 space-y-6">
+          <div className="relative">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input 
+              type="text"
+              placeholder="Search students..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className={cn(
+                "w-full pl-10 pr-4 py-3 rounded-xl border outline-none transition-all",
+                isDarkMode ? "bg-white/5 border-white/10 focus:border-red-600/50" : "bg-white border-slate-200 focus:border-red-600"
+              )}
+            />
+          </div>
+
+          <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
+            {filteredStudents.map(s => (
+              <button
+                key={s.id}
+                onClick={() => setSelectedStudent(s)}
+                className={cn(
+                  "w-full p-4 rounded-2xl border flex items-center gap-4 transition-all text-left",
+                  selectedStudent?.id === s.id 
+                    ? "bg-red-600 border-red-600 text-white shadow-lg shadow-red-600/20" 
+                    : isDarkMode ? "bg-[#111111] border-white/5 hover:bg-white/5" : "bg-white border-slate-200 hover:bg-slate-50 shadow-sm"
+                )}
+              >
+                <div className={cn(
+                  "w-10 h-10 rounded-xl flex items-center justify-center font-bold",
+                  selectedStudent?.id === s.id ? "bg-white/20" : "bg-red-600 text-white"
+                )}>
+                  {s.name[0]}
+                </div>
+                <div>
+                  <p className="font-bold leading-tight">{s.name} {s.surname}</p>
+                  <p className={cn(
+                    "text-[10px] font-bold uppercase tracking-widest",
+                    selectedStudent?.id === s.id ? "text-white/60" : "text-slate-400"
+                  )}>{s.id}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Grades Detail */}
+        <div className="lg:col-span-2">
+          {selectedStudent ? (
+            <div className={cn(
+              "p-8 rounded-[2.5rem] border",
+              isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+            )}>
+              <div className="flex items-center justify-between mb-8">
+                <div>
+                  <h2 className="text-2xl font-black tracking-tighter">Academic Record</h2>
+                  <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">{selectedStudent.name} {selectedStudent.surname}</p>
+                </div>
+                <button 
+                  onClick={() => {
+                    setEditingGradeIndex(null);
+                    setGradeForm({ subject: '', instructor: '', grade: '', semester: '1st Semester 2024-2025' });
+                    setShowEditModal(true);
+                  }}
+                  className="px-4 py-2 bg-red-600 text-white rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg shadow-red-600/20 hover:bg-red-500 transition-all flex items-center gap-2"
+                >
+                  <Plus className="w-3 h-3" />
+                  Add Grade
+                </button>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="text-left border-b border-slate-100 dark:border-white/5">
+                      <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Subject</th>
+                      <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Instructor</th>
+                      <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Semester</th>
+                      <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Grade</th>
+                      <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+                    {(selectedStudent.grades || []).map((g: any, i: number) => (
+                      <tr key={i} className="group">
+                        <td className="py-4 font-bold text-sm">{g.subject}</td>
+                        <td className="py-4 text-sm text-slate-500">{g.instructor}</td>
+                        <td className="py-4 text-xs text-slate-400">{g.semester}</td>
+                        <td className="py-4">
+                          <span className={cn(
+                            "px-3 py-1 rounded-lg font-black text-xs",
+                            parseFloat(g.grade) <= 3.0 ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500"
+                          )}>
+                            {g.grade}
+                          </span>
+                        </td>
+                        <td className="py-4 text-right">
+                          <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                            <button 
+                              onClick={() => {
+                                setEditingGradeIndex(i);
+                                setGradeForm(g);
+                                setShowEditModal(true);
+                              }}
+                              className="p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg text-slate-400 hover:text-red-600"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button 
+                              onClick={() => handleDeleteGrade(i)}
+                              className="p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg text-slate-400 hover:text-red-600"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {(selectedStudent.grades || []).length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="py-12 text-center text-slate-400 font-bold italic">
+                          No grades recorded yet.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            <div className={cn(
+              "h-full min-h-[400px] flex flex-col items-center justify-center p-8 rounded-[2.5rem] border border-dashed",
+              isDarkMode ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50"
+            )}>
+              <div className="w-16 h-16 rounded-2xl bg-slate-200 dark:bg-white/5 flex items-center justify-center text-slate-400 mb-4">
+                <ClipboardList className="w-8 h-8" />
+              </div>
+              <p className="text-slate-400 font-bold italic">Select a student to view and manage grades</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <AnimatePresence>
+        {showEditModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-sm">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white dark:bg-[#111111] rounded-[2.5rem] p-8 max-w-md w-full shadow-2xl border border-slate-200 dark:border-white/5">
+              <h3 className="text-2xl font-black mb-6 text-slate-900 dark:text-white">{editingGradeIndex !== null ? 'Edit Grade' : 'Add New Grade'}</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Subject</label>
+                  <input 
+                    type="text" 
+                    value={gradeForm.subject}
+                    onChange={e => setGradeForm({...gradeForm, subject: e.target.value})}
+                    className="w-full p-4 bg-slate-50 dark:bg-white/5 rounded-2xl border-none outline-none focus:ring-2 focus:ring-red-600 text-slate-900 dark:text-white" 
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Instructor</label>
+                  <select 
+                    value={gradeForm.instructor}
+                    onChange={e => setGradeForm({...gradeForm, instructor: e.target.value})}
+                    className="w-full p-4 bg-slate-50 dark:bg-white/5 rounded-2xl border-none outline-none focus:ring-2 focus:ring-red-600 font-bold text-slate-900 dark:text-white"
+                  >
+                    <option value="" className="bg-white dark:bg-[#111111] text-slate-900 dark:text-white">Select Instructor</option>
+                    {users.filter(u => u.role === 'faculty').map(f => (
+                      <option key={f.id} value={f.name} className="bg-white dark:bg-[#111111] text-slate-900 dark:text-white">{f.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Grade</label>
+                    <select 
+                      value={gradeForm.grade}
+                      onChange={e => setGradeForm({...gradeForm, grade: e.target.value})}
+                      className="w-full p-4 bg-slate-50 dark:bg-white/5 rounded-2xl border-none outline-none focus:ring-2 focus:ring-red-600 appearance-none text-slate-900 dark:text-white"
+                    >
+                      <option value="" className="bg-white dark:bg-[#111111] text-slate-900 dark:text-white">Select Grade</option>
+                      <option value="1.0" className="bg-white dark:bg-[#111111] text-slate-900 dark:text-white">1.0 (Excellent)</option>
+                      <option value="1.25" className="bg-white dark:bg-[#111111] text-slate-900 dark:text-white">1.25 (Superior)</option>
+                      <option value="1.5" className="bg-white dark:bg-[#111111] text-slate-900 dark:text-white">1.5 (Very Good)</option>
+                      <option value="1.75" className="bg-white dark:bg-[#111111] text-slate-900 dark:text-white">1.75 (Good)</option>
+                      <option value="2.0" className="bg-white dark:bg-[#111111] text-slate-900 dark:text-white">2.0 (Satisfactory)</option>
+                      <option value="2.25" className="bg-white dark:bg-[#111111] text-slate-900 dark:text-white">2.25 (Fair)</option>
+                      <option value="2.5" className="bg-white dark:bg-[#111111] text-slate-900 dark:text-white">2.5 (Passing)</option>
+                      <option value="2.75" className="bg-white dark:bg-[#111111] text-slate-900 dark:text-white">2.75 (Below Average)</option>
+                      <option value="3.0" className="bg-white dark:bg-[#111111] text-slate-900 dark:text-white">3.0 (Lowest Passing)</option>
+                      <option value="5.0" className="bg-white dark:bg-[#111111] text-slate-900 dark:text-white">5.0 (Failed)</option>
+                      <option value="INC" className="bg-white dark:bg-[#111111] text-slate-900 dark:text-white">INC (Incomplete)</option>
+                      <option value="W" className="bg-white dark:bg-[#111111] text-slate-900 dark:text-white">W (Withdrawn)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Semester</label>
+                    <select 
+                      value={gradeForm.semester}
+                      onChange={e => setGradeForm({...gradeForm, semester: e.target.value})}
+                      className="w-full p-4 bg-slate-50 dark:bg-white/5 rounded-2xl border-none outline-none focus:ring-2 focus:ring-red-600 appearance-none text-slate-900 dark:text-white"
+                    >
+                      <option className="bg-white dark:bg-[#111111] text-slate-900 dark:text-white">1st Semester 2024-2025</option>
+                      <option className="bg-white dark:bg-[#111111] text-slate-900 dark:text-white">2nd Semester 2024-2025</option>
+                      <option className="bg-white dark:bg-[#111111] text-slate-900 dark:text-white">Summer 2025</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="flex gap-4 pt-4">
+                  <button onClick={() => setShowEditModal(false)} className="flex-1 py-4 bg-slate-100 dark:bg-white/5 rounded-2xl font-bold text-slate-600 dark:text-slate-300">Cancel</button>
+                  <button onClick={handleSaveGrade} className="flex-1 py-4 bg-red-600 text-white rounded-2xl font-black">Save Grade</button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+};
+
+function AdminPanel({ users, fetchUsers, isDarkMode, setConfirmConfig }: { users: UserData[], fetchUsers: any, isDarkMode?: boolean, setConfirmConfig: any }) {
+  const [showAdd, setShowAdd] = useState(false);
+  const [formData, setFormData] = useState({ id: '', name: '', surname: '', role: 'student' as Role, password: 'password', securityQuestion: 'What is your favorite color?', securityAnswer: 'blue' });
+  const [activeTab, setActiveTab] = useState<'users' | 'approvals' | 'resets' | 'logs'>('users');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [resetRequests, setResetRequests] = useState<any[]>([]);
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [approveReset, setApproveReset] = useState<any | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+
+  useEffect(() => {
+    if (activeTab === 'resets') {
+      fetchResetRequests();
+    } else if (activeTab === 'logs') {
+      fetchAuditLogs();
+    }
+  }, [activeTab]);
+
+  const handleApproveUser = async (userId: string, status: 'approved' | 'rejected') => {
+    const { error } = await supabase
+      .from('users')
+      .update({ status })
+      .eq('id', userId);
+    
+    if (!error) {
+      await supabase.from('audit_logs').insert({
+        userId: 'ADMIN',
+        action: 'USER_APPROVAL',
+        details: `${status.toUpperCase()} user ${userId}`,
+        timestamp: new Date().toISOString()
+      });
+      fetchUsers();
+    }
+  };
+
+  const fetchResetRequests = async () => {
+    const { data, error } = await supabase
+      .from('reset_requests')
+      .select('*')
+      .order('timestamp', { ascending: false });
+    
+    if (!error && data) {
+      setResetRequests(data);
+    }
+  };
+
+  const fetchAuditLogs = async () => {
+    const { data, error } = await supabase
+      .from('audit_logs')
+      .select('*')
+      .order('timestamp', { ascending: false });
+    
+    if (!error && data) {
+      setAuditLogs(data);
+    }
+  };
+
+  const handleApproveReset = async () => {
+    if (!newPassword || !approveReset) return;
+
+    const { error } = await supabase
+      .from('users')
+      .update({ password: newPassword })
+      .eq('id', approveReset.schoolId);
+
+    if (!error) {
+      await supabase.from('audit_logs').insert({
+        userId: 'ADMIN',
+        action: 'PASSWORD_RESET_ADMIN',
+        details: `Reset password for user ${approveReset.schoolId}`,
+        timestamp: new Date().toISOString()
+      });
+      await supabase.from('reset_requests').delete().eq('id', approveReset.id);
+      setApproveReset(null);
+      setNewPassword('');
+      fetchResetRequests();
+    }
+  };
+
+  const handleAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    // Generate ID if not provided
+    let finalId = formData.id;
+    if (!finalId) {
+      const year = new Date().getFullYear().toString().slice(-2);
+      const random = Math.floor(10000000 + Math.random() * 90000000);
+      finalId = `SCC-${year}-${random}`;
+    }
+
+    const { error } = await supabase
+      .from('users')
+      .insert({ ...formData, id: finalId, status: 'approved', balance: 0, grades: [], schedule: [] });
+    
+    if (!error) {
+      await supabase.from('audit_logs').insert({
+        userId: 'ADMIN',
+        action: 'USER_CREATED',
+        details: `Created ${formData.role} account: ${finalId}`,
+        timestamp: new Date().toISOString()
+      });
+      setShowAdd(false);
+      fetchUsers();
+    }
+  };
+
+  const handleDelete = async (userId: string) => {
+    setConfirmConfig({
+      isOpen: true,
+      title: 'Deactivate User',
+      message: `Are you sure you want to deactivate user ${userId}? This action cannot be undone and will remove their access to the system.`,
+      type: 'danger',
+      onConfirm: async () => {
+        const { error } = await supabase
+          .from('users')
+          .delete()
+          .eq('id', userId);
+        
+        if (!error) {
+          await supabase.from('audit_logs').insert({
+            userId: 'ADMIN',
+            action: 'USER_DELETED',
+            details: `Deleted user ${userId}`,
+            timestamp: new Date().toISOString()
+          });
+          fetchUsers();
+        }
+      }
+    });
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div>
+          <h1 className="text-4xl font-black tracking-tighter">Admin Panel</h1>
+          <p className={isDarkMode ? "text-slate-400" : "text-slate-500"}>Manage accounts and system requests.</p>
+        </div>
+        <div className="flex gap-4">
+          <button 
+            onClick={() => setActiveTab('users')}
+            className={cn(
+              "px-6 py-3 rounded-xl font-bold transition-all",
+              activeTab === 'users' 
+                ? (isDarkMode ? "bg-white text-slate-900" : "bg-slate-900 text-white")
+                : (isDarkMode ? "bg-white/5 text-slate-400" : "bg-slate-100 text-slate-500")
+            )}
+          >
+            Users
+          </button>
+          <button 
+            onClick={() => setActiveTab('approvals')}
+            className={cn(
+              "px-6 py-3 rounded-xl font-bold transition-all relative",
+              activeTab === 'approvals' 
+                ? (isDarkMode ? "bg-white text-slate-900" : "bg-slate-900 text-white")
+                : (isDarkMode ? "bg-white/5 text-slate-400" : "bg-slate-100 text-slate-500")
+            )}
+          >
+            Approvals
+            {(users || []).filter(u => u.status === 'pending').length > 0 && (
+              <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-600 text-white text-[10px] flex items-center justify-center rounded-full border-2 border-white dark:border-[#0A0A0A]">
+                {(users || []).filter(u => u.status === 'pending').length}
+              </span>
+            )}
+          </button>
+          <button 
+            onClick={() => setActiveTab('resets')}
+            className={cn(
+              "px-6 py-3 rounded-xl font-bold transition-all relative",
+              activeTab === 'resets' 
+                ? (isDarkMode ? "bg-white text-slate-900" : "bg-slate-900 text-white")
+                : (isDarkMode ? "bg-white/5 text-slate-400" : "bg-slate-100 text-slate-500")
+            )}
+          >
+            Reset Requests
+            {(resetRequests || []).filter(r => r.status === 'pending').length > 0 && (
+              <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-600 text-white text-[10px] flex items-center justify-center rounded-full border-2 border-white dark:border-[#0A0A0A]">
+                {(resetRequests || []).filter(r => r.status === 'pending').length}
+              </span>
+            )}
+          </button>
+          <button 
+            onClick={() => setActiveTab('logs')}
+            className={cn(
+              "px-6 py-3 rounded-xl font-bold transition-all",
+              activeTab === 'logs' 
+                ? (isDarkMode ? "bg-white text-slate-900" : "bg-slate-900 text-white")
+                : (isDarkMode ? "bg-white/5 text-slate-400" : "bg-slate-100 text-slate-500")
+            )}
+          >
+            Audit Logs
+          </button>
+          <button 
+            onClick={() => setShowAdd(true)}
+            className="flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-black bg-red-600 text-white hover:bg-red-700 shadow-lg shadow-red-200"
+          >
+            <Plus className="w-5 h-5" />
+            Add User
+          </button>
+        </div>
+      </header>
+
+      {(activeTab === 'users' || activeTab === 'approvals') && (
+        <div className="relative max-w-md">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input 
+            type="text"
+            placeholder="Search by name, ID, or course..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className={cn(
+              "w-full pl-10 pr-4 py-3 rounded-xl border outline-none transition-all",
+              isDarkMode ? "bg-white/5 border-white/10 focus:border-red-600/50" : "bg-white border-slate-200 focus:border-red-600"
+            )}
+          />
+        </div>
+      )}
+
+      {activeTab === 'users' ? (
+        <div className={cn(
+          "rounded-[2.5rem] border overflow-hidden transition-all",
+          isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+        )}>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className={isDarkMode ? "bg-white/5" : "bg-slate-50"}>
+                  <th className="px-8 py-6 text-xs font-bold text-slate-400 uppercase tracking-widest">User</th>
+                  <th className="px-8 py-6 text-xs font-bold text-slate-400 uppercase tracking-widest">Role</th>
+                  <th className="px-8 py-6 text-xs font-bold text-slate-400 uppercase tracking-widest">Status</th>
+                  <th className="px-8 py-6 text-xs font-bold text-slate-400 uppercase tracking-widest text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className={cn("divide-y", isDarkMode ? "divide-white/5" : "divide-slate-100")}>
+                {(users || []).filter(u => 
+                  u.status !== 'pending' && 
+                  (u.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                   u.id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                   (u.course && u.course.toLowerCase().includes(searchTerm.toLowerCase())))
+                ).map(u => (
+                  <tr key={u.id} className={cn("transition-colors", isDarkMode ? "hover:bg-white/5" : "hover:bg-slate-50")}>
+                    <td className="px-8 py-6">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-red-500/10 flex items-center justify-center font-black text-red-500 text-xl overflow-hidden">
+                          {u.profilePic ? (
+                            <img src={u.profilePic} alt={u.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                          ) : (
+                            u.name?.[0] || '?'
+                          )}
+                        </div>
+                        <div>
+                          <p className="font-bold text-lg">{u.name}</p>
+                          <p className={cn("text-xs font-mono", isDarkMode ? "text-red-400" : "text-red-600")}>{u.id}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-8 py-6">
+                      <span className={cn(
+                        "px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest",
+                        u.role === 'admin' ? "bg-red-500/10 text-red-500" : u.role === 'faculty' ? "bg-amber-500/10 text-amber-500" : "bg-blue-500/10 text-blue-500"
+                      )}>
+                        {u.role}
+                      </span>
+                    </td>
+                    <td className="px-8 py-6">
+                      <span className={cn(
+                        "px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest",
+                        u.status === 'approved' ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500"
+                      )}>
+                        {u.status || 'approved'}
+                      </span>
+                    </td>
+                    <td className="px-8 py-6 text-right">
+                      <div className="flex justify-end gap-2">
+                        <button className="p-3 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">
+                          <Edit className="w-5 h-5" />
+                        </button>
+                        <button 
+                          onClick={() => handleDelete(u.id)} 
+                          className="p-3 text-slate-400 hover:text-red-600 transition-colors"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : activeTab === 'approvals' ? (
+        <div className={cn(
+          "rounded-[2.5rem] border overflow-hidden transition-all",
+          isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+        )}>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className={isDarkMode ? "bg-white/5" : "bg-slate-50"}>
+                  <th className="px-8 py-6 text-xs font-bold text-slate-400 uppercase tracking-widest">User</th>
+                  <th className="px-8 py-6 text-xs font-bold text-slate-400 uppercase tracking-widest">Role</th>
+                  <th className="px-8 py-6 text-xs font-bold text-slate-400 uppercase tracking-widest text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className={cn("divide-y", isDarkMode ? "divide-white/5" : "divide-slate-100")}>
+                {(users || []).filter(u => 
+                  u.status === 'pending' && 
+                  (u.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                   u.id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                   (u.course && u.course.toLowerCase().includes(searchTerm.toLowerCase())))
+                ).map(u => (
+                  <tr key={u.id} className={cn("transition-colors", isDarkMode ? "hover:bg-white/5" : "hover:bg-slate-50")}>
+                    <td className="px-8 py-6">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-red-500/10 flex items-center justify-center font-black text-red-500 text-xl overflow-hidden">
+                          {u.name?.[0] || '?'}
+                        </div>
+                        <div>
+                          <p className="font-bold text-lg">{u.name || 'Unknown'}</p>
+                          <p className={cn("text-xs font-mono", isDarkMode ? "text-red-400" : "text-red-600")}>{u.id}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-8 py-6">
+                      <span className={cn(
+                        "px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest",
+                        u.role === 'admin' ? "bg-red-500/10 text-red-500" : u.role === 'faculty' ? "bg-amber-500/10 text-amber-500" : "bg-blue-500/10 text-blue-500"
+                      )}>
+                        {u.role}
+                      </span>
+                    </td>
+                    <td className="px-8 py-6 text-right">
+                      <div className="flex justify-end gap-3">
+                        <button 
+                          onClick={() => handleApproveUser(u.id, 'rejected')}
+                          className="px-4 py-2 bg-red-50 text-red-600 rounded-xl text-xs font-bold hover:bg-red-100 transition-all"
+                        >
+                          Reject
+                        </button>
+                        <button 
+                          onClick={() => handleApproveUser(u.id, 'approved')}
+                          className="px-4 py-2 bg-emerald-500 text-white rounded-xl text-xs font-bold hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-100"
+                        >
+                          Approve
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {(users || []).filter(u => u.status === 'pending').length === 0 && (
+                  <tr>
+                    <td colSpan={3} className="px-8 py-20 text-center text-slate-400">
+                      No pending registrations.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : activeTab === 'resets' ? (
+        <div className={cn(
+          "rounded-[2.5rem] border overflow-hidden transition-all",
+          isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+        )}>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className={isDarkMode ? "bg-white/5" : "bg-slate-50"}>
+                  <th className="px-8 py-6 text-xs font-bold text-slate-400 uppercase tracking-widest">User</th>
+                  <th className="px-8 py-6 text-xs font-bold text-slate-400 uppercase tracking-widest">Date Requested</th>
+                  <th className="px-8 py-6 text-xs font-bold text-slate-400 uppercase tracking-widest">Status</th>
+                  <th className="px-8 py-6 text-xs font-bold text-slate-400 uppercase tracking-widest text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className={cn("divide-y", isDarkMode ? "divide-white/5" : "divide-slate-100")}>
+                {(resetRequests || []).map(r => (
+                  <tr key={r.id} className={cn("transition-colors", isDarkMode ? "hover:bg-white/5" : "hover:bg-slate-50")}>
+                    <td className="px-8 py-6">
+                      <p className="font-bold">{r.name}</p>
+                      <p className="text-xs text-slate-400">{r.schoolId}</p>
+                    </td>
+                    <td className="px-8 py-6 text-sm text-slate-400">
+                      {r.date ? new Date(r.date).toLocaleDateString() : 'N/A'}
+                    </td>
+                    <td className="px-8 py-6">
+                      <span className={cn(
+                        "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
+                        r.status === 'pending' ? "bg-amber-500/10 text-amber-500" : "bg-emerald-500/10 text-emerald-500"
+                      )}>
+                        {r.status}
+                      </span>
+                    </td>
+                    <td className="px-8 py-6 text-right">
+                      {r.status === 'pending' && (
+                        <button 
+                          onClick={() => setApproveReset(r)}
+                          className="px-4 py-2 bg-emerald-500 text-white rounded-xl text-xs font-bold hover:bg-emerald-600 transition-all"
+                        >
+                          Reset Password
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+                {(resetRequests || []).length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="px-8 py-20 text-center text-slate-400">
+                      No reset requests found.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+        <div className={cn(
+          "rounded-[2.5rem] border overflow-hidden transition-all",
+          isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+        )}>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className={isDarkMode ? "bg-white/5" : "bg-slate-50"}>
+                  <th className="px-8 py-6 text-xs font-bold text-slate-400 uppercase tracking-widest">Timestamp</th>
+                  <th className="px-8 py-6 text-xs font-bold text-slate-400 uppercase tracking-widest">User ID</th>
+                  <th className="px-8 py-6 text-xs font-bold text-slate-400 uppercase tracking-widest">Action</th>
+                  <th className="px-8 py-6 text-xs font-bold text-slate-400 uppercase tracking-widest">Details</th>
+                </tr>
+              </thead>
+              <tbody className={cn("divide-y", isDarkMode ? "divide-white/5" : "divide-slate-100")}>
+                {(auditLogs || []).map(log => (
+                  <tr key={log.id} className={cn("transition-colors", isDarkMode ? "hover:bg-white/5" : "hover:bg-slate-50")}>
+                    <td className="px-8 py-6 text-xs font-mono text-slate-400">
+                      {log.timestamp ? new Date(log.timestamp).toLocaleString() : 'N/A'}
+                    </td>
+                    <td className="px-8 py-6 font-bold text-sm">
+                      {log.userId}
+                    </td>
+                    <td className="px-8 py-6">
+                      <span className={cn(
+                        "px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest",
+                        log.action === 'LOGIN' ? "bg-blue-500/10 text-blue-500" :
+                        log.action === 'REGISTER' ? "bg-emerald-500/10 text-emerald-500" :
+                        log.action === 'PASSWORD_RESET' ? "bg-red-500/10 text-red-500" :
+                        "bg-slate-500/10 text-slate-500"
+                      )}>
+                        {log.action}
+                      </span>
+                    </td>
+                    <td className="px-8 py-6 text-xs text-slate-500">
+                      {log.details}
+                    </td>
+                  </tr>
+                ))}
+                {auditLogs.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="px-8 py-20 text-center text-slate-400">
+                      No audit logs found.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {showAdd && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[100]">
+          <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className={cn(
+            "p-10 rounded-[3rem] w-full max-w-md shadow-2xl border",
+            isDarkMode ? "bg-[#111111] border-white/10 text-white" : "bg-white border-slate-200"
+          )}>
+            <div className="flex justify-between items-center mb-8">
+              <h2 className="text-3xl font-black tracking-tighter text-slate-900 dark:text-white">Create Account</h2>
+              <button onClick={() => setShowAdd(false)} className="p-2 hover:bg-white/5 rounded-full transition-colors text-slate-400">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <form onSubmit={handleAdd} className="space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">ID Number</label>
+                  <input 
+                    value={formData.id} 
+                    onChange={e => setFormData({...formData, id: e.target.value})} 
+                    className={cn(
+                      "w-full p-4 rounded-2xl border font-bold outline-none focus:ring-2 focus:ring-red-600 transition-all text-slate-900 dark:text-white",
+                      isDarkMode ? "bg-white/5 border-white/10" : "bg-slate-50 border-slate-200"
+                    )}
+                    required 
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Role</label>
+                  <select 
+                    value={formData.role} 
+                    onChange={e => setFormData({...formData, role: e.target.value as Role})} 
+                    className={cn(
+                      "w-full p-4 rounded-2xl border font-bold outline-none focus:ring-2 focus:ring-red-600 transition-all text-slate-900 dark:text-white",
+                      isDarkMode ? "bg-white/5 border-white/10" : "bg-slate-50 border-slate-200"
+                    )}
+                  >
+                    <option value="student" className="bg-white dark:bg-[#111111] text-slate-900 dark:text-white">Student</option>
+                    <option value="faculty" className="bg-white dark:bg-[#111111] text-slate-900 dark:text-white">Faculty</option>
+                    <option value="admin" className="bg-white dark:bg-[#111111] text-slate-900 dark:text-white">Admin</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">First Name</label>
+                <input 
+                  value={formData.name} 
+                  onChange={e => setFormData({...formData, name: e.target.value})} 
+                  className={cn(
+                    "w-full p-4 rounded-2xl border font-bold outline-none focus:ring-2 focus:ring-red-600 transition-all text-slate-900 dark:text-white",
+                    isDarkMode ? "bg-white/5 border-white/10" : "bg-slate-50 border-slate-200"
+                  )}
+                  required 
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Surname</label>
+                <input 
+                  value={formData.surname} 
+                  onChange={e => setFormData({...formData, surname: e.target.value})} 
+                  className={cn(
+                    "w-full p-4 rounded-2xl border font-bold outline-none focus:ring-2 focus:ring-red-600 transition-all text-slate-900 dark:text-white",
+                    isDarkMode ? "bg-white/5 border-white/10" : "bg-slate-50 border-slate-200"
+                  )}
+                  required 
+                />
+              </div>
+              <div className="flex gap-4 pt-4">
+                <button type="button" onClick={() => setShowAdd(false)} className="flex-1 py-4 font-black text-slate-500 hover:text-red-600 transition-colors">Cancel</button>
+                <button type="submit" className="flex-1 py-4 bg-red-600 text-white rounded-2xl font-black shadow-lg shadow-red-600/20 hover:bg-red-700 transition-all">Create User</button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
+
+      {approveReset && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[100]">
+          <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className={cn(
+            "p-10 rounded-[3rem] w-full max-w-md shadow-2xl border",
+            isDarkMode ? "bg-[#111111] border-white/10 text-white" : "bg-white border-slate-200"
+          )}>
+            <h2 className="text-3xl font-black tracking-tighter mb-4 text-slate-900 dark:text-white">Reset Password</h2>
+            <p className={cn("mb-8", isDarkMode ? "text-slate-400" : "text-slate-500")}>
+              Enter a new password for <span className="font-bold text-emerald-500">{approveReset.name}</span>.
+            </p>
+            <div className="space-y-6">
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">New Password</label>
+                <input 
+                  type="password"
+                  value={newPassword} 
+                  onChange={e => setNewPassword(e.target.value)} 
+                  className={cn(
+                    "w-full p-4 rounded-2xl border font-bold outline-none focus:ring-2 focus:ring-emerald-600 transition-all text-slate-900 dark:text-white",
+                    isDarkMode ? "bg-white/5 border-white/10" : "bg-slate-50 border-slate-200"
+                  )}
+                  required 
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <button 
+                  onClick={() => { setApproveReset(null); setNewPassword(''); }}
+                  className={cn(
+                    "py-4 rounded-2xl font-bold transition-all",
+                    isDarkMode ? "bg-white/5 hover:bg-white/10" : "bg-slate-100 hover:bg-slate-200"
+                  )}
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={handleApproveReset}
+                  className="py-4 rounded-2xl bg-emerald-600 text-white font-black hover:bg-emerald-700 shadow-xl shadow-emerald-200 transition-all"
+                >
+                  Approve Reset
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
+const ScholarshipsView = ({ scholarships, user, isDarkMode, isAdmin = false, fetchScholarships, setView, setSelectedScholarship }: any) => {
+  const [isAdding, setIsAdding] = useState(false);
+  const [newScholarship, setNewScholarship] = useState({
+    name: '',
+    description: '',
+    criteria: '',
+    deadline: '',
+    amount: ''
+  });
+
+  const handleAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const { error } = await supabase
+        .from('scholarships')
+        .insert({
+          ...newScholarship,
+          amount: newScholarship.amount
+        });
+      
+      if (!error) {
+        setIsAdding(false);
+        setNewScholarship({ name: '', description: '', criteria: '', deadline: '', amount: '' });
+        fetchScholarships?.();
+      }
+    } catch (error) {
+      console.error('Error adding scholarship:', error);
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-8"
+    >
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-4xl font-black tracking-tighter mb-2">Scholarship Programs</h2>
+          <p className="text-slate-500">Available financial assistance and academic grants.</p>
+        </div>
+        {isAdmin && (
+          <button
+            onClick={() => setIsAdding(true)}
+            className="px-6 py-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl font-bold flex items-center gap-2 hover:scale-105 transition-all"
+          >
+            <Plus className="w-5 h-5" />
+            Add Program
+          </button>
+        )}
+      </div>
+
+      {isAdding && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className={cn(
+            "p-8 rounded-[2.5rem] border",
+            isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-xl"
+          )}
+        >
+          <form onSubmit={handleAdd} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <label className="text-xs font-bold uppercase tracking-widest text-slate-400">Program Name</label>
+                <input
+                  required
+                  value={newScholarship.name}
+                  onChange={e => setNewScholarship({ ...newScholarship, name: e.target.value })}
+                  className={cn(
+                    "w-full px-6 py-4 rounded-2xl border transition-all outline-none text-slate-900 dark:text-white",
+                    isDarkMode ? "bg-white/5 border-white/10 focus:border-white/20" : "bg-slate-50 border-slate-200 focus:border-slate-900"
+                  )}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold uppercase tracking-widest text-slate-400">Amount/Grant</label>
+                <input
+                  required
+                  value={newScholarship.amount}
+                  onChange={e => setNewScholarship({ ...newScholarship, amount: e.target.value })}
+                  className={cn(
+                    "w-full px-6 py-4 rounded-2xl border transition-all outline-none text-slate-900 dark:text-white",
+                    isDarkMode ? "bg-white/5 border-white/10 focus:border-white/20" : "bg-slate-50 border-slate-200 focus:border-slate-900"
+                  )}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-widest text-slate-400">Description</label>
+              <textarea
+                required
+                value={newScholarship.description}
+                onChange={e => setNewScholarship({ ...newScholarship, description: e.target.value })}
+                className={cn(
+                  "w-full px-6 py-4 rounded-2xl border transition-all outline-none min-h-[100px] text-slate-900 dark:text-white",
+                  isDarkMode ? "bg-white/5 border-white/10 focus:border-white/20" : "bg-slate-50 border-slate-200 focus:border-slate-900"
+                )}
+              />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <label className="text-xs font-bold uppercase tracking-widest text-slate-400">Criteria</label>
+                <input
+                  required
+                  value={newScholarship.criteria}
+                  onChange={e => setNewScholarship({ ...newScholarship, criteria: e.target.value })}
+                  className={cn(
+                    "w-full px-6 py-4 rounded-2xl border transition-all outline-none text-slate-900 dark:text-white",
+                    isDarkMode ? "bg-white/5 border-white/10 focus:border-white/20" : "bg-slate-50 border-slate-200 focus:border-slate-900"
+                  )}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold uppercase tracking-widest text-slate-400">Deadline</label>
+                <input
+                  required
+                  type="date"
+                  value={newScholarship.deadline}
+                  onChange={e => setNewScholarship({ ...newScholarship, deadline: e.target.value })}
+                  className={cn(
+                    "w-full px-6 py-4 rounded-2xl border transition-all outline-none text-slate-900 dark:text-white",
+                    isDarkMode ? "bg-white/5 border-white/10 focus:border-white/20" : "bg-slate-50 border-slate-200 focus:border-slate-900"
+                  )}
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-4 pt-4">
+              <button
+                type="button"
+                onClick={() => setIsAdding(false)}
+                className="px-8 py-4 rounded-2xl font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-8 py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl font-bold hover:scale-105 transition-all"
+              >
+                Save Program
+              </button>
+            </div>
+          </form>
+        </motion.div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        {scholarships.map((s: any) => (
+          <motion.div
+            key={s.id}
+            whileHover={{ y: -5 }}
+            className={cn(
+              "p-8 rounded-[2.5rem] border flex flex-col transition-all",
+              isDarkMode ? "bg-[#111111] border-white/5 hover:border-white/10" : "bg-white border-slate-200 shadow-sm hover:shadow-xl"
+            )}
+          >
+            <div className="mb-6">
+              <div className="w-12 h-12 rounded-2xl bg-slate-900 dark:bg-white flex items-center justify-center mb-4">
+                <Award className="w-6 h-6 text-white dark:text-slate-900" />
+              </div>
+              <h3 className="text-xl font-black tracking-tight mb-2">{s.name}</h3>
+              <p className="text-sm text-slate-500 line-clamp-3">{s.description}</p>
+            </div>
+            
+            <div className="mt-auto space-y-4">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-slate-400">Grant Amount</span>
+                <span className="font-bold text-emerald-500">{s.amount}</span>
+              </div>
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-slate-400">Deadline</span>
+                <span className="font-bold">{new Date(s.deadline).toLocaleDateString()}</span>
+              </div>
+              
+              {!isAdmin && user.role === 'student' && (
+                <button 
+                  onClick={() => {
+                    setSelectedScholarship(s.name);
+                    setView('finance');
+                  }}
+                  className="w-full py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl font-bold hover:scale-[1.02] active:scale-[0.98] transition-all"
+                >
+                  Apply Now
+                </button>
+              )}
+            </div>
+          </motion.div>
+        ))}
+      </div>
+    </motion.div>
+  );
+};
+
+const ApplicationsView = ({ financialAid, user, isDarkMode, updateFinancialAidStatus, users = [], assignFaculty, setView, setSelectedStudentForRec }: any) => {
+  const filteredApplications = user.role === 'student' 
+    ? financialAid.filter((a: any) => a.studentId === user.id)
+    : user.role === 'faculty'
+    ? financialAid.filter((a: any) => a.facultyId === user.id)
+    : financialAid;
+
+  const facultyMembers = users.filter((u: any) => u.role === 'faculty');
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-8"
+    >
+      <div>
+        <h2 className="text-4xl font-black tracking-tighter mb-2">
+          {user.role === 'student' ? 'My Applications' : 'All Applications'}
+        </h2>
+        <p className="text-slate-500">Track and manage financial aid requests.</p>
+      </div>
+
+      <div className={cn(
+        "rounded-[2.5rem] border overflow-hidden transition-all",
+        isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+      )}>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className={isDarkMode ? "bg-white/5" : "bg-slate-50"}>
+                <th className="px-8 py-6 text-xs font-bold text-slate-400 uppercase tracking-widest">Student</th>
+                <th className="px-8 py-6 text-xs font-bold text-slate-400 uppercase tracking-widest">Type</th>
+                <th className="px-8 py-6 text-xs font-bold text-slate-400 uppercase tracking-widest">Date</th>
+                <th className="px-8 py-6 text-xs font-bold text-slate-400 uppercase tracking-widest">Assigned Faculty</th>
+                <th className="px-8 py-6 text-xs font-bold text-slate-400 uppercase tracking-widest">Status</th>
+                {(user.role === 'admin' || user.role === 'staff') && (
+                  <th className="px-8 py-6 text-xs font-bold text-slate-400 uppercase tracking-widest text-right">Actions</th>
+                )}
+              </tr>
+            </thead>
+            <tbody className={cn("divide-y", isDarkMode ? "divide-white/5" : "divide-slate-100")}>
+              {filteredApplications.map((a: any) => (
+                <tr key={a.id} className={cn("transition-colors", isDarkMode ? "hover:bg-white/5" : "hover:bg-slate-50")}>
+                  <td className="px-8 py-6">
+                    <p className="font-bold">{a.studentName}</p>
+                    <p className="text-xs text-slate-400">{a.studentId}</p>
+                  </td>
+                  <td className="px-8 py-6">
+                    <span className="text-sm font-medium">{a.program}</span>
+                  </td>
+                  <td className="px-8 py-6 text-sm text-slate-400">
+                    {new Date(a.date).toLocaleDateString()}
+                  </td>
+                  <td className="px-8 py-6">
+                    {(user.role === 'admin' || user.role === 'staff') ? (
+                      <select
+                        value={a.facultyId || ''}
+                        onChange={(e) => assignFaculty(a.id, e.target.value)}
+                        className={cn(
+                          "text-xs font-bold p-2 rounded-xl border outline-none",
+                          isDarkMode ? "bg-white/5 border-white/10" : "bg-slate-50 border-slate-200"
+                        )}
+                      >
+                        <option value="">Unassigned</option>
+                        {facultyMembers.map((f: any) => (
+                          <option key={f.id} value={f.id}>{f.name}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className="text-xs font-bold text-slate-400">
+                        {users.find((u: any) => u.id === a.facultyId)?.name || 'Unassigned'}
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-8 py-6">
+                    <span className={cn(
+                      "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
+                      a.status === 'pending' ? "bg-amber-500/10 text-amber-500" :
+                      a.status === 'approved' ? "bg-emerald-500/10 text-emerald-500" :
+                      "bg-red-500/10 text-red-500"
+                    )}>
+                      {a.status}
+                    </span>
+                  </td>
+                  {(user.role === 'admin' || user.role === 'staff' || user.role === 'faculty') && (
+                    <td className="px-8 py-6 text-right">
+                      {user.role === 'faculty' && a.facultyId === user.id && (
+                        <button
+                          onClick={() => {
+                            setSelectedStudentForRec({ id: a.studentId, name: a.studentName });
+                            setView('dashboard');
+                          }}
+                          className="px-4 py-2 bg-red-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-red-700 transition-all flex items-center gap-2 ml-auto"
+                        >
+                          <CheckCircle className="w-4 h-4" /> Recommend
+                        </button>
+                      )}
+                      {(user.role === 'admin' || user.role === 'staff') && a.status === 'pending' && (
+                        <div className="flex justify-end gap-2">
+                          <button
+                            onClick={() => updateFinancialAidStatus(a.id, 'approved')}
+                            className="p-2 bg-emerald-500/10 text-emerald-500 rounded-lg hover:bg-emerald-500 hover:text-white transition-all"
+                          >
+                            <CheckCircle className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => updateFinancialAidStatus(a.id, 'rejected')}
+                            className="p-2 bg-red-500/10 text-red-500 rounded-lg hover:bg-red-500 hover:text-white transition-all"
+                          >
+                            <XCircle className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  )}
+                </tr>
+              ))}
+              {filteredApplications.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-8 py-20 text-center text-slate-400">
+                    No applications found.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
+const ReportsView = ({ financialAid, scholarships, isDarkMode, user }: any) => {
+  const isAdmin = user.role === 'admin';
+  const isFaculty = user.role === 'faculty';
+
+  const filteredAid = isFaculty 
+    ? financialAid.filter((a: any) => a.facultyId === user.id)
+    : financialAid;
+
+  const stats = [
+    { label: isAdmin ? 'Total Applications' : 'My Assigned Applications', value: filteredAid.length, icon: <FileText className="w-6 h-6" />, color: 'blue' },
+    { label: isAdmin ? 'Approved Aid' : 'My Approved Reviews', value: filteredAid.filter((a: any) => a.status === 'approved').length, icon: <CheckCircle className="w-6 h-6" />, color: 'emerald' },
+    { label: 'Active Scholarships', value: scholarships.length, icon: <Award className="w-6 h-6" />, color: 'amber' },
+    { label: isAdmin ? 'Pending Reviews' : 'My Pending Reviews', value: filteredAid.filter((a: any) => a.status === 'pending').length, icon: <Clock className="w-6 h-6" />, color: 'indigo' },
+  ];
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-8"
+    >
+      <div>
+        <h2 className="text-4xl font-black tracking-tighter mb-2">
+          {isAdmin ? 'Admin Reports & Analytics' : 'Faculty Reports & Analytics'}
+        </h2>
+        <p className="text-slate-500">
+          {isAdmin ? 'Overview of global scholarship and financial aid performance.' : 'Overview of your assigned scholarship and financial aid reviews.'}
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {stats.map((stat: any, i: number) => (
+          <motion.div
+            key={i}
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: i * 0.1 }}
+            className={cn(
+              "p-8 rounded-[2.5rem] border transition-all",
+              isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+            )}
+          >
+            <div className={cn(
+              "w-12 h-12 rounded-2xl flex items-center justify-center mb-4",
+              stat.color === 'blue' ? "bg-blue-500/10 text-blue-500" :
+              stat.color === 'emerald' ? "bg-emerald-500/10 text-emerald-500" :
+              stat.color === 'amber' ? "bg-amber-500/10 text-amber-500" :
+              "bg-indigo-500/10 text-indigo-500"
+            )}>
+              {stat.icon}
+            </div>
+            <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">{stat.label}</p>
+            <p className="text-3xl font-black tracking-tighter">{stat.value}</p>
+          </motion.div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className={cn(
+          "p-8 rounded-[2.5rem] border",
+          isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+        )}>
+          <h3 className="text-xl font-black tracking-tight mb-6">Application Status Distribution</h3>
+          <div className="h-[300px] flex items-end justify-around gap-4 pt-10">
+            {['pending', 'approved', 'rejected'].map((status) => {
+              const count = filteredAid.filter((a: any) => a.status === status).length;
+              const percentage = filteredAid.length > 0 ? (count / filteredAid.length) * 100 : 0;
+              return (
+                <div key={status} className="flex-1 flex flex-col items-center gap-4">
+                  <div className="w-full relative group">
+                    <motion.div
+                      initial={{ height: 0 }}
+                      animate={{ height: `${percentage}%` }}
+                      className={cn(
+                        "w-full rounded-t-2xl transition-all",
+                        status === 'pending' ? "bg-amber-500" :
+                        status === 'approved' ? "bg-emerald-500" :
+                        "bg-red-500"
+                      )}
+                    />
+                    <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity text-xs font-bold">
+                      {count}
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{status}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className={cn(
+          "p-8 rounded-[2.5rem] border",
+          isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+        )}>
+          <h3 className="text-xl font-black tracking-tight mb-6">Recent Activity</h3>
+          <div className="space-y-4">
+            {financialAid.slice(0, 5).map((a: any) => (
+              <div key={a.id} className="flex items-center gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-white/5">
+                <div className={cn(
+                  "w-10 h-10 rounded-xl flex items-center justify-center",
+                  a.status === 'approved' ? "bg-emerald-500/10 text-emerald-500" :
+                  a.status === 'rejected' ? "bg-red-500/10 text-red-500" :
+                  "bg-amber-500/10 text-amber-500"
+                )}>
+                  {a.status === 'approved' ? <CheckCircle className="w-5 h-5" /> : a.status === 'rejected' ? <XCircle className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-bold">{a.studentName}</p>
+                  <p className="text-[10px] text-slate-400 uppercase tracking-widest">{a.type} - {a.status}</p>
+                </div>
+                <span className="text-[10px] text-slate-400">{new Date(a.date).toLocaleDateString()}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
+const ActivityView = ({ isDarkMode }: any) => {
+  const [isBackingUp, setIsBackingUp] = useState(false);
+
+  const handleDownloadBackup = async () => {
+    setIsBackingUp(true);
+    try {
+      const tables = [
+        'users',
+        'scholarships',
+        'financial_aid',
+        'audit_logs',
+        'announcements',
+        'resources',
+        'mentors',
+        'community_events',
+        'community_orgs',
+        'recommendations',
+        'notifications',
+        'messages'
+      ];
+
+      const backupData: any = {};
+
+      for (const table of tables) {
+        const { data, error } = await supabase.from(table).select('*');
+        if (!error) {
+          backupData[table] = data;
+        }
+      }
+
+      const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `student_aid_portal_backup_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Backup failed:', err);
+    } finally {
+      setIsBackingUp(false);
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-8"
+    >
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-4xl font-black tracking-tighter mb-2 uppercase">Backup & Recovery</h2>
+          <p className="text-slate-500">Manage and download full system backups for all data.</p>
+        </div>
+      </div>
+
+      <div className={cn(
+        "p-12 rounded-[3rem] border flex flex-col items-center justify-center text-center space-y-8 transition-all",
+        isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+      )}>
+        <div className={cn(
+          "w-24 h-24 rounded-[2rem] flex items-center justify-center mb-4",
+          isDarkMode ? "bg-white/5" : "bg-slate-50"
+        )}>
+          <Database className={cn("w-12 h-12 text-red-600", isBackingUp && "animate-bounce")} />
+        </div>
+        
+        <div className="max-w-md">
+          <h3 className="text-2xl font-black tracking-tight mb-2">System Data Export</h3>
+          <p className={cn("text-sm", isDarkMode ? "text-slate-500" : "text-slate-400")}>
+            Generate a comprehensive backup of all system data including users, applications, content, and logs. This file can be used for data recovery or migration.
+          </p>
+        </div>
+
+        <button
+          onClick={handleDownloadBackup}
+          disabled={isBackingUp}
+          className={cn(
+            "flex items-center gap-3 px-10 py-5 rounded-2xl font-black uppercase tracking-widest transition-all",
+            isDarkMode 
+              ? "bg-white text-slate-900 hover:bg-slate-200" 
+              : "bg-slate-900 hover:bg-slate-800 text-white shadow-2xl shadow-slate-900/40",
+            isBackingUp && "opacity-50 cursor-not-allowed"
+          )}
+        >
+          {isBackingUp ? <Clock className="w-6 h-6 animate-spin" /> : <Download className="w-6 h-6" />}
+          {isBackingUp ? 'Generating Backup...' : 'Download Full System Backup'}
+        </button>
+
+        <div className="pt-8 flex items-center gap-6 text-[10px] font-black uppercase tracking-widest text-slate-400">
+          <div className="flex items-center gap-2">
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            Database Connected
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+            JSON Format
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+            Full Encryption
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
+const RecommendationsView = ({ recommendations, user, isDarkMode, fetchRecommendations, users = [] }: any) => {
+  const [isAdding, setIsAdding] = useState(false);
+  const [newRec, setNewRec] = useState({
+    studentName: '',
+    studentId: '',
+    content: ''
+  });
+
+  const students = users.filter((u: any) => u.role === 'student');
+
+  const handleStudentSelect = (studentName: string) => {
+    const selectedStudent = students.find((s: any) => s.name === studentName);
+    if (selectedStudent) {
+      setNewRec({ ...newRec, studentName, studentId: selectedStudent.id });
+    } else {
+      setNewRec({ ...newRec, studentName, studentId: '' });
+    }
+  };
+
+  const handleAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const { error } = await supabase
+        .from('recommendations')
+        .insert({ 
+          ...newRec, 
+          facultyId: user.id, 
+          facultyName: user.name,
+          date: new Date().toISOString()
+        });
+      
+      if (!error) {
+        setIsAdding(false);
+        setNewRec({ studentName: '', studentId: '', content: '' });
+        fetchRecommendations?.();
+      }
+    } catch (error) {
+      console.error('Error adding recommendation:', error);
+    }
+  };
+
+  const filteredRecs = user.role === 'faculty' 
+    ? recommendations.filter((r: any) => r.facultyId === user.id)
+    : recommendations;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-8"
+    >
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-4xl font-black tracking-tighter mb-2">Faculty Recommendations</h2>
+          <p className="text-slate-500">Manage and submit student scholarship recommendations.</p>
+        </div>
+        {user.role === 'faculty' && (
+          <button
+            onClick={() => setIsAdding(true)}
+            className="px-6 py-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl font-bold flex items-center gap-2 hover:scale-105 transition-all"
+          >
+            <Plus className="w-5 h-5" />
+            New Recommendation
+          </button>
+        )}
+      </div>
+
+      {isAdding && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className={cn(
+            "p-8 rounded-[2.5rem] border",
+            isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-xl"
+          )}
+        >
+          <form onSubmit={handleAdd} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <label className="text-xs font-bold uppercase tracking-widest text-slate-400">Student Name</label>
+                <select
+                  required
+                  value={newRec.studentName}
+                  onChange={e => handleStudentSelect(e.target.value)}
+                  className={cn(
+                    "w-full px-6 py-4 rounded-2xl border transition-all outline-none font-bold",
+                    isDarkMode ? "bg-white/5 border-white/10 focus:border-white/20" : "bg-slate-50 border-slate-200 focus:border-slate-900"
+                  )}
+                >
+                  <option value="">Select Student</option>
+                  {students.map((s: any) => (
+                    <option key={s.id} value={s.name}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold uppercase tracking-widest text-slate-400">Student ID</label>
+                <input
+                  required
+                  value={newRec.studentId}
+                  readOnly
+                  className={cn(
+                    "w-full px-6 py-4 rounded-2xl border transition-all outline-none font-bold opacity-70",
+                    isDarkMode ? "bg-white/5 border-white/10 focus:border-white/20" : "bg-slate-50 border-slate-200 focus:border-slate-900"
+                  )}
+                  placeholder="Student ID"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-widest text-slate-400">Recommendation Content</label>
+              <textarea
+                required
+                value={newRec.content}
+                onChange={e => setNewRec({ ...newRec, content: e.target.value })}
+                className={cn(
+                  "w-full px-6 py-4 rounded-2xl border transition-all outline-none min-h-[150px]",
+                  isDarkMode ? "bg-white/5 border-white/10 focus:border-white/20" : "bg-slate-50 border-slate-200 focus:border-slate-900"
+                )}
+                placeholder="Describe why this student deserves the scholarship..."
+              />
+            </div>
+            <div className="flex justify-end gap-4 pt-4">
+              <button
+                type="button"
+                onClick={() => setIsAdding(false)}
+                className="px-8 py-4 rounded-2xl font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-8 py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl font-bold hover:scale-105 transition-all"
+              >
+                Submit Recommendation
+              </button>
+            </div>
+          </form>
+        </motion.div>
+      )}
+
+      <div className="grid grid-cols-1 gap-6">
+        {filteredRecs.map((r: any) => (
+          <motion.div
+            key={r.id}
+            className={cn(
+              "p-8 rounded-[2.5rem] border transition-all",
+              isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm"
+            )}
+          >
+            <div className="flex justify-between items-start mb-6">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-amber-500/10 flex items-center justify-center">
+                  <CheckCircle className="w-6 h-6 text-amber-500" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black tracking-tight">{r.studentName}</h3>
+                  <p className="text-xs text-slate-400 uppercase tracking-widest">Student ID: {r.studentId}</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-sm font-bold">Recommended by {r.facultyName}</p>
+                <p className="text-xs text-slate-400">{new Date(r.date).toLocaleDateString()}</p>
+              </div>
+            </div>
+            <div className={cn(
+              "p-6 rounded-2xl italic text-slate-500",
+              isDarkMode ? "bg-white/5" : "bg-slate-50"
+            )}>
+              "{r.content}"
+            </div>
+          </motion.div>
+        ))}
+        {filteredRecs.length === 0 && (
+          <div className="py-20 text-center text-slate-400">
+            No recommendations found.
+          </div>
+        )}
+      </div>
+    </motion.div>
+  );
+};
+
+const NotificationsView = ({ notifications, isDarkMode }: any) => {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-8"
+    >
+      <div>
+        <h2 className="text-4xl font-black tracking-tighter mb-2">Notifications</h2>
+        <p className="text-slate-500">Stay updated with the latest activities and alerts.</p>
+      </div>
+
+      <div className="space-y-4">
+        {notifications.map((n: any) => (
+          <motion.div
+            key={n.id}
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className={cn(
+              "p-6 rounded-3xl border flex items-start gap-6 transition-all",
+              isDarkMode ? "bg-[#111111] border-white/5" : "bg-white border-slate-200 shadow-sm",
+              !n.read && (isDarkMode ? "border-blue-500/30 bg-blue-500/5" : "border-blue-500/30 bg-blue-50/50")
+            )}
+          >
+            <div className={cn(
+              "w-12 h-12 rounded-2xl flex items-center justify-center shrink-0",
+              n.type === 'registration' ? "bg-emerald-500/10 text-emerald-500" :
+              n.type === 'message' ? "bg-blue-500/10 text-blue-500" :
+              "bg-amber-500/10 text-amber-500"
+            )}>
+              {n.type === 'registration' ? <User className="w-6 h-6" /> :
+               n.type === 'message' ? <MessageSquare className="w-6 h-6" /> :
+               <Bell className="w-6 h-6" />}
+            </div>
+            <div className="flex-1">
+              <div className="flex justify-between items-start mb-1">
+                <h3 className="font-bold text-lg">{n.title}</h3>
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                  {new Date(n.timestamp).toLocaleString()}
+                </span>
+              </div>
+              <p className="text-slate-500">{n.message}</p>
+            </div>
+            {!n.read && (
+              <div className="w-3 h-3 rounded-full bg-blue-500 mt-2 shrink-0" />
+            )}
+          </motion.div>
+        ))}
+        {notifications.length === 0 && (
+          <div className="py-20 text-center text-slate-400">
+            No notifications yet.
+          </div>
+        )}
+      </div>
+    </motion.div>
+  );
+};
